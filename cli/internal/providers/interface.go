@@ -31,3 +31,13 @@ type Provider interface {
 	GetInstanceStatus(ctx context.Context, instanceID string) (Status, error)
 	AttachVolume(ctx context.Context, instanceID, volumeID string) error
 }
+
+// NewProvider returns a Provider implementation based on the name.
+// This is a stub for orchestration integration.
+func NewProvider(name string) Provider {
+	if name == "mock" {
+		return NewMockProvider()
+	}
+	// TODO: Add real providers (Hetzner, AWS, etc.)
+	return nil
+}
