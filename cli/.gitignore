@@ -1,0 +1,31 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, generated with `go test -c`
+*.test
+
+# Output of the go tool, specifically from `go build -o`
+*.out
+
+# Dependency directories (remove the comment to include them to version control)
+# vendor/
+
+# Go workspace file
+go.work
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.bak
+*.tmp
+
+# OpenHost specific
+.openhost/
+*.env
+credentials.env
+
