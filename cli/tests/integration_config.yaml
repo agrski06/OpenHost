@@ -1,0 +1,13 @@
+name: "integration-server"
+provider:
+  name: mock
+  region: test-region
+  plan: test-plan
+game:
+  type: test-game
+  image: test-image
+  persistence: none
+automation:
+  auto-stop-timeout: disabled
+  trigger: manual
+
