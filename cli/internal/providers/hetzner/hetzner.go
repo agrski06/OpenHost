@@ -16,10 +16,8 @@ func (p *Provider) Name() string {
 	return "hetzner"
 }
 
-// RunServer creates the VPS on Hetzner and runs init command
 func (p *Provider) RunServer(name string, game core.Game) (core.Server, error) {
 	token := os.Getenv("HCLOUD_TOKEN")
-
 	if token == "" {
 		return nil, fmt.Errorf("HCLOUD_TOKEN environment variable is not set")
 	}
@@ -28,8 +26,6 @@ func (p *Provider) RunServer(name string, game core.Game) (core.Server, error) {
 	ctx := context.Background()
 
 	_, anyIPv4, _ := net.ParseCIDR("0.0.0.0/0")
-
-	// Helper function to build a rule
 	buildRule := func(p hcloud.FirewallRuleProtocol, port int) hcloud.FirewallRule {
 		return hcloud.FirewallRule{
 			Direction: hcloud.FirewallRuleDirectionIn,
@@ -42,7 +38,6 @@ func (p *Provider) RunServer(name string, game core.Game) (core.Server, error) {
 	rules := []hcloud.FirewallRule{
 		buildRule(hcloud.FirewallRuleProtocolTCP, 22), // Always allow SSH
 	}
-
 	if game.Protocol() == "tcp" || game.Protocol() == "both" {
 		rules = append(rules, buildRule(hcloud.FirewallRuleProtocolTCP, game.Port()))
 	}
@@ -51,36 +46,46 @@ func (p *Provider) RunServer(name string, game core.Game) (core.Server, error) {
 	}
 
 	fwName := fmt.Sprintf("fw-%s-%d", game.Name(), game.Port())
-	fw, _, _ := client.Firewall.Create(ctx, hcloud.FirewallCreateOpts{
-		Name:  fwName,
-		Rules: rules,
-	})
+	fw, _, err := client.Firewall.GetByName(ctx, fwName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check for existing firewall: %w", err)
+	}
 
-	// Create the Server
+	if fw == nil {
+		res, _, err := client.Firewall.Create(ctx, hcloud.FirewallCreateOpts{
+			Name:  fwName,
+			Rules: rules,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create firewall: %w", err)
+		}
+		fw = res.Firewall
+	}
+
 	result, _, err := client.Server.Create(ctx, hcloud.ServerCreateOpts{
 		Name:       name,
 		Image:      &hcloud.Image{Name: "ubuntu-24.04"},
 		ServerType: &hcloud.ServerType{Name: "cx23"},
 		UserData:   game.BuildInitCommand(),
 		Firewalls: []*hcloud.ServerCreateFirewall{
-			{Firewall: *fw.Firewall},
+			{Firewall: *fw},
 		},
-		SSHKeys: []*hcloud.SSHKey{{Name: "default"}},
+		// TODO: make this work
+		// SSHKeys: []*hcloud.SSHKey{{Name: "default"}},
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create server: %w", err)
 	}
 
-	// Note: The IP might not be fully assigned until the 'Create Server' action is finished
 	err = client.Action.WaitFor(ctx, result.Action)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error waiting for server creation action: %w", err)
 	}
 
 	server, _, err := client.Server.GetByID(ctx, result.Server.ID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to retrieve server details: %w", err)
 	}
 
 	return &Server{

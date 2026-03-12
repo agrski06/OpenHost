@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 
+	godotenv2 "github.com/joho/godotenv"
 	"github.com/openhost/cli/internal/config"
 	"github.com/openhost/cli/internal/core"
 
@@ -15,6 +17,10 @@ import (
 )
 
 func main() {
+	err := godotenv2.Load()
+	if err != nil {
+		log.Fatal("Could not load .env")
+	}
 
 	parsedConfig, _ := config.ParseYAML("tests/test_config.yaml")
 
