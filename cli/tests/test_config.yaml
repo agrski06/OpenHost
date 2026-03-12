@@ -1,0 +1,6 @@
+name: "minecraft-server"
+provider:
+  name: hetzner
+  plan: cx32
+game:
+  type: minecraft
