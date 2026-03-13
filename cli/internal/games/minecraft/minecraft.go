@@ -13,11 +13,17 @@ var initScript string
 
 type Minecraft struct{}
 
-func (g *Minecraft) Name() string     { return "minecraft" }
-func (g *Minecraft) Port() int        { return 25565 }
-func (g *Minecraft) Protocol() string { return "tcp" }
+func (g *Minecraft) Name() string { return "minecraft" }
 
-func (g *Minecraft) BuildInitCommand() string {
+func (g *Minecraft) Ports() []core.PortRange {
+	return []core.PortRange{
+		{Protocol: "tcp", From: 25565, To: 25565},
+	}
+}
+
+func (g *Minecraft) BuildInitCommand(rawSettings map[string]any) string {
+	primaryPort := g.Ports()[0].From
+
 	data := struct {
 		JavaPackage string
 		DownloadURL string
@@ -26,10 +32,11 @@ func (g *Minecraft) BuildInitCommand() string {
 		Port        int
 	}{
 		JavaPackage: "openjdk-21-jre-headless",
+		// Minecraft 1.21.x Server JAR
 		DownloadURL: "https://piston-data.mojang.com/v1/objects/64bb6d763bed0a9f1d632ec347938594144943ed/server.jar",
-		MinMem:      "1G", // TODO: set this dynamically
-		MaxMem:      "4G", // Maximum limit
-		Port:        g.Port(),
+		MinMem:      "1G", // TODO: set this dynamically based on provider plan
+		MaxMem:      "4G",
+		Port:        primaryPort,
 	}
 
 	tmpl, err := template.New("mc_init").Parse(initScript)

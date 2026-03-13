@@ -22,7 +22,7 @@ func (p *Provider) Name() string {
 	return "hetzner"
 }
 
-func (p *Provider) RunServer(name string, game core.Game, rawSettings map[string]any) (core.Server, error) {
+func (p *Provider) RunServer(name string, game core.Game, rawSettings map[string]any, gameSettings map[string]any) (core.Server, error) {
 	var settings Settings
 	if err := mapstructure.Decode(rawSettings, &settings); err != nil {
 		return nil, fmt.Errorf("invalid hetzner settings: %w", err)
@@ -37,26 +37,39 @@ func (p *Provider) RunServer(name string, game core.Game, rawSettings map[string
 	ctx := context.Background()
 
 	_, anyIPv4, _ := net.ParseCIDR("0.0.0.0/0")
-	buildRule := func(p hcloud.FirewallRuleProtocol, port int) hcloud.FirewallRule {
+
+	// Helper to build a port or port-range rule
+	buildRule := func(proto hcloud.FirewallRuleProtocol, startPort int, endPort int) hcloud.FirewallRule {
+		portStr := fmt.Sprintf("%d", startPort)
+		if startPort != endPort {
+			portStr = fmt.Sprintf("%d-%d", startPort, endPort)
+		}
 		return hcloud.FirewallRule{
 			Direction: hcloud.FirewallRuleDirectionIn,
-			Protocol:  p,
-			Port:      hcloud.Ptr(fmt.Sprintf("%d", port)),
+			Protocol:  proto,
+			Port:      hcloud.Ptr(portStr),
 			SourceIPs: []net.IPNet{*anyIPv4},
 		}
 	}
 
+	// Default rules: SSH always allowed
 	rules := []hcloud.FirewallRule{
-		buildRule(hcloud.FirewallRuleProtocolTCP, 22), // Always allow SSH
-	}
-	if game.Protocol() == "tcp" || game.Protocol() == "both" {
-		rules = append(rules, buildRule(hcloud.FirewallRuleProtocolTCP, game.Port()))
-	}
-	if game.Protocol() == "udp" || game.Protocol() == "both" {
-		rules = append(rules, buildRule(hcloud.FirewallRuleProtocolUDP, game.Port()))
+		buildRule(hcloud.FirewallRuleProtocolTCP, 22, 22),
 	}
 
-	fwName := fmt.Sprintf("fw-%s-%d", game.Name(), game.Port())
+	// Dynamic Port Generation
+	for _, pr := range game.Ports() {
+		proto := hcloud.FirewallRuleProtocolTCP
+		if pr.Protocol == "udp" {
+			proto = hcloud.FirewallRuleProtocolUDP
+		}
+
+		rules = append(rules, buildRule(proto, pr.From, pr.To))
+	}
+
+	// Use a unique firewall name based on the game and its primary port
+	primaryPort := game.Ports()[0].From
+	fwName := fmt.Sprintf("fw-%s-%d", game.Name(), primaryPort)
 	fw, _, err := client.Firewall.GetByName(ctx, fwName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for existing firewall: %w", err)
@@ -78,41 +91,30 @@ func (p *Provider) RunServer(name string, game core.Game, rawSettings map[string
 		Image:      &hcloud.Image{Name: "ubuntu-24.04"},
 		ServerType: &hcloud.ServerType{Name: settings.Plan},
 		Location:   &hcloud.Location{Name: settings.Location},
-		UserData:   game.BuildInitCommand(),
+		UserData:   game.BuildInitCommand(gameSettings),
 		Firewalls: []*hcloud.ServerCreateFirewall{
 			{Firewall: *fw},
 		},
-		// TODO: make this work
-		// SSHKeys: []*hcloud.SSHKey{{Name: "default"}},
 	})
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create server: %w", err)
 	}
 
-	err = client.Action.WaitFor(ctx, result.Action)
-	if err != nil {
-		return nil, fmt.Errorf("error waiting for server creation action: %w", err)
-	}
+	_ = client.Action.WaitFor(ctx, result.Action)
 
 	server, _, err := client.Server.GetByID(ctx, result.Server.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve server details: %w", err)
 	}
 
-	return &Server{
-		ip: server.PublicNet.IPv4.IP.String(),
-	}, nil
+	return &Server{ip: server.PublicNet.IPv4.IP.String()}, nil
 }
 
-type Server struct {
-	ip string
-}
+type Server struct{ ip string }
 
 func (s *Server) IP() string { return s.ip }
 
 func init() {
-	core.RegisterProvider("hetzner", func() core.Provider {
-		return &Provider{}
-	})
+	core.RegisterProvider("hetzner", func() core.Provider { return &Provider{} })
 }

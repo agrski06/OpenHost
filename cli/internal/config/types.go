@@ -12,10 +12,10 @@ type ServerDetail struct {
 
 type ProviderConfig struct {
 	Name     string         `mapstructure:"name"`
-	Settings map[string]any `mapstructure:"settings"` // The "bucket"
+	Settings map[string]any `mapstructure:"settings"`
 }
 
 type GameConfig struct {
 	Name     string         `mapstructure:"name"`
-	Settings map[string]any `mapstructure:"settings"` // If game also has settings
+	Settings map[string]any `mapstructure:"settings"`
 }

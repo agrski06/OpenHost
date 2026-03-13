@@ -14,6 +14,7 @@ import (
 
 	// Games registration
 	_ "github.com/openhost/cli/internal/games/minecraft"
+	_ "github.com/openhost/cli/internal/games/valheim"
 )
 
 func main() {
@@ -22,7 +23,7 @@ func main() {
 		log.Fatal("Could not load .env")
 	}
 
-	parsedConfig, _ := config.ParseYAML("example/hetzner_minecraft_config.yaml")
+	parsedConfig, _ := config.ParseYAML("example/hetzner_valheim_config.yaml")
 
 	provider, _ := core.GetProvider(parsedConfig.Provider.Name)
 	game, _ := core.GetGame(parsedConfig.Game.Name)
@@ -32,6 +33,7 @@ func main() {
 		parsedConfig.Server.Name,
 		game,
 		parsedConfig.Provider.Settings,
+		parsedConfig.Game.Settings,
 	)
 	if err != nil {
 		fmt.Println(err)

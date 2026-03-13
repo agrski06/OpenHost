@@ -1,0 +1,11 @@
+server:
+  name: "valheim-server"
+provider:
+  name: hetzner
+  settings:
+    plan: cx23
+game:
+  name: valheim
+  settings:
+    world: "my_valheim_world"
+    password: "very_secure_password"
