@@ -22,13 +22,17 @@ func main() {
 		log.Fatal("Could not load .env")
 	}
 
-	parsedConfig, _ := config.ParseYAML("tests/test_config.yaml")
+	parsedConfig, _ := config.ParseYAML("example/hetzner_minecraft_config.yaml")
 
 	provider, _ := core.GetProvider(parsedConfig.Provider.Name)
-	game, _ := core.GetGame(parsedConfig.Game.Type)
+	game, _ := core.GetGame(parsedConfig.Game.Name)
 
 	// TODO: I guess I will need to pass whole ProviderConfig anyway
-	server, err := provider.RunServer(parsedConfig.Name, game)
+	server, err := provider.RunServer(
+		parsedConfig.Server.Name,
+		game,
+		parsedConfig.Provider.Settings,
+	)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)

@@ -20,25 +20,22 @@ func ParseYAML(filePath string) (*ServerConfig, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
-	if err := validateConfig(&config); err != nil {
+	if err := validateMandatoryConfigFields(&config); err != nil {
 		return nil, fmt.Errorf("config validation failed: %w", err)
 	}
 
 	return &config, nil
 }
 
-// validateConfig performs basic validation on the ServerConfig.
-func validateConfig(config *ServerConfig) error {
-	if config.Name == "" {
+// validateMandatoryConfigFields performs basic validation on the ServerConfig.
+func validateMandatoryConfigFields(config *ServerConfig) error {
+	if config.Server.Name == "" {
 		return fmt.Errorf("server name cannot be empty")
 	}
 	if config.Provider.Name == "" {
 		return fmt.Errorf("provider name cannot be empty")
 	}
-	if config.Provider.Plan == "" {
-		return fmt.Errorf("provider plan cannot be empty")
-	}
-	if config.Game.Type == "" {
+	if config.Game.Name == "" {
 		return fmt.Errorf("game type cannot be empty")
 	}
 

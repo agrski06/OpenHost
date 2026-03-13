@@ -1,16 +1,21 @@
 package config
 
 type ServerConfig struct {
-	Name     string         `mapstructure:"name"`
+	Server   ServerDetail   `mapstructure:"server"`
 	Provider ProviderConfig `mapstructure:"provider"`
 	Game     GameConfig     `mapstructure:"game"`
 }
 
-type ProviderConfig struct {
+type ServerDetail struct {
 	Name string `mapstructure:"name"`
-	Plan string `mapstructure:"plan"`
+}
+
+type ProviderConfig struct {
+	Name     string         `mapstructure:"name"`
+	Settings map[string]any `mapstructure:"settings"` // The "bucket"
 }
 
 type GameConfig struct {
-	Type string `mapstructure:"type"`
+	Name     string         `mapstructure:"name"`
+	Settings map[string]any `mapstructure:"settings"` // If game also has settings
 }

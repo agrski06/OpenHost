@@ -7,5 +7,5 @@ type Provider interface {
 
 	// RunServer executes the final step to create and start the server
 	// on the cloud provider, using the prepared configuration.
-	RunServer(name string, game Game) (Server, error)
+	RunServer(name string, game Game, rawSettings map[string]any) (Server, error)
 }

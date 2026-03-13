@@ -27,7 +27,7 @@ func (g *Minecraft) BuildInitCommand() string {
 	}{
 		JavaPackage: "openjdk-21-jre-headless",
 		DownloadURL: "https://piston-data.mojang.com/v1/objects/64bb6d763bed0a9f1d632ec347938594144943ed/server.jar",
-		MinMem:      "1G", // Initial allocation
+		MinMem:      "1G", // TODO: set this dynamically
 		MaxMem:      "4G", // Maximum limit
 		Port:        g.Port(),
 	}

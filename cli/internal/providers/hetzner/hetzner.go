@@ -6,17 +6,28 @@ import (
 	"net"
 	"os"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/openhost/cli/internal/core"
 )
 
 type Provider struct{}
 
+type Settings struct {
+	Plan     string `mapstructure:"plan"`
+	Location string `mapstructure:"location"`
+}
+
 func (p *Provider) Name() string {
 	return "hetzner"
 }
 
-func (p *Provider) RunServer(name string, game core.Game) (core.Server, error) {
+func (p *Provider) RunServer(name string, game core.Game, rawSettings map[string]any) (core.Server, error) {
+	var settings Settings
+	if err := mapstructure.Decode(rawSettings, &settings); err != nil {
+		return nil, fmt.Errorf("invalid hetzner settings: %w", err)
+	}
+
 	token := os.Getenv("HCLOUD_TOKEN")
 	if token == "" {
 		return nil, fmt.Errorf("HCLOUD_TOKEN environment variable is not set")
@@ -65,7 +76,8 @@ func (p *Provider) RunServer(name string, game core.Game) (core.Server, error) {
 	result, _, err := client.Server.Create(ctx, hcloud.ServerCreateOpts{
 		Name:       name,
 		Image:      &hcloud.Image{Name: "ubuntu-24.04"},
-		ServerType: &hcloud.ServerType{Name: "cx23"},
+		ServerType: &hcloud.ServerType{Name: settings.Plan},
+		Location:   &hcloud.Location{Name: settings.Location},
 		UserData:   game.BuildInitCommand(),
 		Firewalls: []*hcloud.ServerCreateFirewall{
 			{Firewall: *fw},

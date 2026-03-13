@@ -1,0 +1,8 @@
+server:
+  name: "minecraft-server"
+provider:
+  name: hetzner
+  settings:
+    plan: cx23
+game:
+  name: minecraft
