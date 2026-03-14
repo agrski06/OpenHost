@@ -5,18 +5,21 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/openhost/cli/internal/core"
 )
 
 const currentVersion = 1
 
 type Record struct {
-	Provider   string `json:"provider"`
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	PublicIP   string `json:"public_ip,omitempty"`
-	Game       string `json:"game,omitempty"`
-	ConfigPath string `json:"config_path,omitempty"`
-	CreatedAt  string `json:"created_at"`
+	Provider            string             `json:"provider"`
+	ID                  string             `json:"id"`
+	Name                string             `json:"name"`
+	PublicIP            string             `json:"public_ip,omitempty"`
+	Game                string             `json:"game,omitempty"`
+	ConfigPath          string             `json:"config_path,omitempty"`
+	AssociatedResources []core.ResourceRef `json:"associated_resources,omitempty"`
+	CreatedAt           string             `json:"created_at"`
 }
 
 type Snapshot struct {

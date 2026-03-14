@@ -16,7 +16,7 @@ func TestRunList_NoServers(t *testing.T) {
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	cli := New(&stdout, &stderr)
+	cli := New(bytes.NewBuffer(nil), &stdout, &stderr)
 
 	require.NoError(t, cli.runList(nil))
 	assert.Equal(t, "No servers found in local state.\n", stdout.String())
@@ -46,7 +46,7 @@ func TestRunList_PrintsSummaries(t *testing.T) {
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	cli := New(&stdout, &stderr)
+	cli := New(bytes.NewBuffer(nil), &stdout, &stderr)
 
 	require.NoError(t, cli.runList(nil))
 	output := stdout.String()
@@ -60,7 +60,7 @@ func TestExecute_ListRoute(t *testing.T) {
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	cli := New(&stdout, &stderr)
+	cli := New(bytes.NewBuffer(nil), &stdout, &stderr)
 
 	require.NoError(t, cli.Execute([]string{"list"}))
 	assert.Equal(t, "No servers found in local state.\n", stdout.String())

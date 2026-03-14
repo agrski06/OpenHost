@@ -64,13 +64,14 @@ func DeployFromConfig(configPath string) (*core.Server, error) {
 	}
 
 	if err := stateStore.SaveRecord(state.Record{
-		Provider:   server.Provider,
-		ID:         server.ID,
-		Name:       server.Name,
-		PublicIP:   server.PublicIP,
-		Game:       game.Name(),
-		ConfigPath: absoluteConfigPath(configPath),
-		CreatedAt:  time.Now().UTC().Format(time.RFC3339),
+		Provider:            server.Provider,
+		ID:                  server.ID,
+		Name:                server.Name,
+		PublicIP:            server.PublicIP,
+		Game:                game.Name(),
+		ConfigPath:          absoluteConfigPath(configPath),
+		AssociatedResources: server.AssociatedResources,
+		CreatedAt:           time.Now().UTC().Format(time.RFC3339),
 	}); err != nil {
 		return nil, fmt.Errorf(
 			"persist state for deployed server provider=%q id=%q ip=%q after config %q: %w",

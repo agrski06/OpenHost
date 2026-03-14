@@ -57,14 +57,14 @@ func (p *Provider) GetServerStatus(id string) (*core.InfrastructureStatus, error
 	return status, nil
 }
 
-func (p *Provider) DeleteServer(id string) error {
-	log.Printf("mock provider: starting DeleteServer id=%q", id)
-	if id == "" {
+func (p *Provider) DeleteServer(request core.DeleteServerRequest) error {
+	log.Printf("mock provider: starting DeleteServer id=%q removeAssociatedResources=%t", request.ID, request.RemoveAssociatedResources)
+	if request.ID == "" {
 		log.Printf("mock provider: rejected delete because server id is empty")
 		return fmt.Errorf("mock: server id cannot be empty")
 	}
 
-	log.Printf("mock provider: deleted fake server id=%q", id)
+	log.Printf("mock provider: deleted fake server id=%q", request.ID)
 	return nil
 }
 

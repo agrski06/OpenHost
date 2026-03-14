@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/openhost/cli/internal/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +29,10 @@ func TestStoreSaveRecordCreatesAndLoadsSnapshot(t *testing.T) {
 		PublicIP:   "203.0.113.10",
 		Game:       "minecraft",
 		ConfigPath: "example/mock_minecraft_config.yaml",
-		CreatedAt:  "2026-03-14T00:00:00Z",
+		AssociatedResources: []core.ResourceRef{
+			{Type: "firewall", ID: "fw-1", Name: "fw-test"},
+		},
+		CreatedAt: "2026-03-14T00:00:00Z",
 	})
 	require.NoError(t, err)
 
@@ -38,6 +42,8 @@ func TestStoreSaveRecordCreatesAndLoadsSnapshot(t *testing.T) {
 	assert.Equal(t, "mock", snapshot.Servers[0].Provider)
 	assert.Equal(t, "mock-server-1", snapshot.Servers[0].ID)
 	assert.Equal(t, "server-1", snapshot.Servers[0].Name)
+	require.Len(t, snapshot.Servers[0].AssociatedResources, 1)
+	assert.Equal(t, "fw-1", snapshot.Servers[0].AssociatedResources[0].ID)
 }
 
 func TestStoreSaveRecordUpsertsByProviderAndID(t *testing.T) {

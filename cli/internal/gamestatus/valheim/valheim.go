@@ -97,7 +97,8 @@ func primaryPort(target gamestatus.Target) (int, error) {
 		}
 	}
 
-	return target.Ports[0].From, nil
+	// Valheim uses basePort+1 for queries
+	return target.Ports[0].From + 1, nil
 }
 
 func queryInfo(conn net.Conn) (*infoResponse, error) {

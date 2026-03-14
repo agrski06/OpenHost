@@ -8,6 +8,14 @@ type CreateServerRequest struct {
 	UserData         string
 }
 
+type DeleteServerRequest struct {
+	ID                        string
+	GameName                  string
+	Ports                     []PortRange
+	AssociatedResources       []ResourceRef
+	RemoveAssociatedResources bool
+}
+
 // Provider defines an interface for cloud providers that can
 // prepare and run game servers.
 type Provider interface {
@@ -22,5 +30,5 @@ type Provider interface {
 	GetServerStatus(id string) (*InfrastructureStatus, error)
 
 	// DeleteServer removes the server identified by the provider-native ID.
-	DeleteServer(id string) error
+	DeleteServer(request DeleteServerRequest) error
 }

@@ -30,6 +30,6 @@ func main() {
 func run() error {
 	_ = godotenv2.Load()
 
-	cli := cmd.New(os.Stdout, os.Stderr)
+	cli := cmd.New(os.Stdin, os.Stdout, os.Stderr)
 	return cli.Execute(os.Args[1:])
 }

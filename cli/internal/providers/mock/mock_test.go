@@ -98,12 +98,12 @@ func TestProviderCreateServer_RequireTokenCustomEnvVar(t *testing.T) {
 
 func TestProviderDeleteServer_Succeeds(t *testing.T) {
 	provider := &Provider{}
-	require.NoError(t, provider.DeleteServer("mock-server"))
+	require.NoError(t, provider.DeleteServer(core.DeleteServerRequest{ID: "mock-server"}))
 }
 
 func TestProviderDeleteServer_RejectsEmptyID(t *testing.T) {
 	provider := &Provider{}
-	err := provider.DeleteServer("")
+	err := provider.DeleteServer(core.DeleteServerRequest{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "server id cannot be empty")
 }

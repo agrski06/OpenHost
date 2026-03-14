@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
@@ -18,6 +19,11 @@ type Settings struct {
 	Plan     string `mapstructure:"plan"`
 	Location string `mapstructure:"location"`
 }
+
+const (
+	deleteWaitTimeout  = 2 * time.Minute
+	deletePollInterval = 2 * time.Second
+)
 
 func (p *Provider) Name() string {
 	return "hetzner"
@@ -65,14 +71,14 @@ func (p *Provider) GetServerStatus(id string) (*core.InfrastructureStatus, error
 	}, nil
 }
 
-func (p *Provider) DeleteServer(id string) error {
-	if id == "" {
+func (p *Provider) DeleteServer(request core.DeleteServerRequest) error {
+	if request.ID == "" {
 		return fmt.Errorf("hetzner server id cannot be empty")
 	}
 
-	serverID, err := strconv.ParseInt(id, 10, 64)
+	serverID, err := strconv.ParseInt(request.ID, 10, 64)
 	if err != nil {
-		return fmt.Errorf("invalid hetzner server id %q: %w", id, err)
+		return fmt.Errorf("invalid hetzner server id %q: %w", request.ID, err)
 	}
 
 	client, err := newClientFromEnv()
@@ -83,14 +89,27 @@ func (p *Provider) DeleteServer(id string) error {
 	ctx := context.Background()
 	server, _, err := client.Server.GetByID(ctx, serverID)
 	if err != nil {
-		return fmt.Errorf("failed to retrieve hetzner server %q before deletion: %w", id, err)
+		return fmt.Errorf("failed to retrieve hetzner server %q before deletion: %w", request.ID, err)
 	}
 	if server == nil {
 		return nil
 	}
 
-	if _, _, err := client.Server.DeleteWithResult(ctx, server); err != nil {
-		return fmt.Errorf("failed to delete hetzner server %q: %w", id, err)
+	deleteResult, _, err := client.Server.DeleteWithResult(ctx, server)
+	if err != nil {
+		return fmt.Errorf("failed to delete hetzner server %q: %w", request.ID, err)
+	}
+	if deleteResult != nil && deleteResult.Action != nil {
+		if err := client.Action.WaitFor(ctx, deleteResult.Action); err != nil {
+			return fmt.Errorf("wait for deletion of hetzner server %q: %w", request.ID, err)
+		}
+	}
+	if err := waitForServerDeletion(ctx, client, serverID); err != nil {
+		return fmt.Errorf("confirm deletion of hetzner server %q: %w", request.ID, err)
+	}
+
+	if err := p.deleteAssociatedResources(ctx, client, request); err != nil {
+		return err
 	}
 
 	return nil
@@ -194,11 +213,69 @@ func (p *Provider) CreateServer(request core.CreateServerRequest) (*core.Server,
 		Provider: p.Name(),
 		Name:     server.Name,
 		PublicIP: publicIP,
+		AssociatedResources: []core.ResourceRef{
+			{
+				Type: "firewall",
+				ID:   fmt.Sprintf("%d", fw.ID),
+				Name: fw.Name,
+			},
+		},
 	}, nil
 }
 
 func init() {
 	core.RegisterProvider("hetzner", func() core.Provider { return &Provider{} })
+}
+
+func (p *Provider) deleteAssociatedResources(ctx context.Context, client *hcloud.Client, request core.DeleteServerRequest) error {
+	if !request.RemoveAssociatedResources {
+		return nil
+	}
+	for _, resource := range request.AssociatedResources {
+		switch resource.Type {
+		case "firewall":
+			firewallID, err := strconv.ParseInt(resource.ID, 10, 64)
+			if err != nil {
+				return fmt.Errorf("failed to parse associated Hetzner firewall ID %q for server %q: %w", resource.ID, request.ID, err)
+			}
+			firewall, _, err := client.Firewall.GetByID(ctx, firewallID)
+			if err != nil {
+				return fmt.Errorf("failed to look up associated Hetzner firewall %q for server %q: %w", resource.ID, request.ID, err)
+			}
+			if firewall == nil {
+				continue
+			}
+			if _, err := client.Firewall.Delete(ctx, firewall); err != nil {
+				return fmt.Errorf("failed to delete associated Hetzner firewall %q for server %q: %w", resource.ID, request.ID, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func waitForServerDeletion(ctx context.Context, client *hcloud.Client, serverID int64) error {
+	deadlineCtx, cancel := context.WithTimeout(ctx, deleteWaitTimeout)
+	defer cancel()
+
+	ticker := time.NewTicker(deletePollInterval)
+	defer ticker.Stop()
+
+	for {
+		server, _, err := client.Server.GetByID(deadlineCtx, serverID)
+		if err != nil {
+			return err
+		}
+		if server == nil {
+			return nil
+		}
+
+		select {
+		case <-deadlineCtx.Done():
+			return fmt.Errorf("timed out waiting for server %d to be deleted", serverID)
+		case <-ticker.C:
+		}
+	}
 }
 
 func mapServerState(status hcloud.ServerStatus) core.InfrastructureState {

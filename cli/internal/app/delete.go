@@ -8,6 +8,10 @@ import (
 )
 
 func DeleteKnownServer(selector string) (*state.Record, error) {
+	return DeleteKnownServerWithOptions(selector, false)
+}
+
+func DeleteKnownServerWithOptions(selector string, removeAssociatedResources bool) (*state.Record, error) {
 	store, err := state.DefaultStore()
 	if err != nil {
 		return nil, err
@@ -26,7 +30,18 @@ func DeleteKnownServer(selector string) (*state.Record, error) {
 		return nil, fmt.Errorf("resolve provider %q for server %q: %w", record.Provider, record.Name, err)
 	}
 
-	if err := provider.DeleteServer(record.ID); err != nil {
+	deleteRequest := core.DeleteServerRequest{
+		ID:                        record.ID,
+		GameName:                  record.Game,
+		AssociatedResources:       record.AssociatedResources,
+		RemoveAssociatedResources: removeAssociatedResources,
+	}
+	if gameDefinition, err := core.GetGame(record.Game); err == nil {
+		deleteRequest.GameName = gameDefinition.Name()
+		deleteRequest.Ports = gameDefinition.Ports()
+	}
+
+	if err := provider.DeleteServer(deleteRequest); err != nil {
 		return nil, fmt.Errorf("delete server %q (%s:%s): %w", record.Name, record.Provider, record.ID, err)
 	}
 

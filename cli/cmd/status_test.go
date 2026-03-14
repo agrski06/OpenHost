@@ -27,7 +27,7 @@ func TestRunStatus_PrintsCombinedStatus(t *testing.T) {
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	cli := New(&stdout, &stderr)
+	cli := New(bytes.NewBuffer(nil), &stdout, &stderr)
 
 	require.NoError(t, cli.runStatus([]string{"alpha"}))
 	output := stdout.String()

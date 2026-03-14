@@ -9,12 +9,13 @@ import (
 const DefaultConfigPath = "openhost_config.yaml"
 
 type CLI struct {
+	stdin  io.Reader
 	stdout io.Writer
 	stderr io.Writer
 }
 
-func New(stdout io.Writer, stderr io.Writer) *CLI {
-	return &CLI{stdout: stdout, stderr: stderr}
+func New(stdin io.Reader, stdout io.Writer, stderr io.Writer) *CLI {
+	return &CLI{stdin: stdin, stdout: stdout, stderr: stderr}
 }
 
 func (c *CLI) Execute(args []string) error {
@@ -51,11 +52,12 @@ func (c *CLI) printUsage() error {
 		"  openhost up [config-file]\n" +
 		"  openhost list\n" +
 		"  openhost status [server-name|provider:id]\n" +
-		"  openhost down <server-name|provider:id>\n" +
+		"  openhost down [--remove-associated-resources] <server-name|provider:id>\n" +
 		"  openhost help\n\n" +
 		"Notes:\n" +
 		"  - If no arguments are provided, the CLI runs `up` with the default config.\n" +
-		"  - For compatibility, a bare config path is treated like `up <config-file>`."
+		"  - For compatibility, a bare config path is treated like `up <config-file>`.\n" +
+		"  - `down` prompts before removing associated resources unless the flag is provided."
 
 	_, err := fmt.Fprintln(c.stdout, usage)
 	return err

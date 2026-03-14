@@ -26,7 +26,7 @@ func TestRunDown_ResolvesServerName(t *testing.T) {
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	cli := New(&stdout, &stderr)
+	cli := New(bytes.NewBuffer(nil), &stdout, &stderr)
 
 	require.NoError(t, cli.runDown([]string{"alpha"}))
 	assert.Equal(
@@ -38,4 +38,30 @@ func TestRunDown_ResolvesServerName(t *testing.T) {
 	record, err := store.GetRecord("mock", "mock-server-1")
 	require.NoError(t, err)
 	assert.Nil(t, record)
+}
+
+func TestParseDownArgs_WithRemoveAssociatedResourcesFlag(t *testing.T) {
+	cli := New(bytes.NewBuffer(nil), &bytes.Buffer{}, &bytes.Buffer{})
+	selector, removeAssociated, err := cli.parseDownArgs([]string{removeAssociatedResourcesFlag, "alpha"})
+	require.NoError(t, err)
+	assert.Equal(t, "alpha", selector)
+	require.NotNil(t, removeAssociated)
+	assert.True(t, *removeAssociated)
+}
+
+func TestPromptRemoveAssociatedResources_DefaultNoOnEOF(t *testing.T) {
+	var stdout bytes.Buffer
+	cli := New(bytes.NewBuffer(nil), &stdout, &bytes.Buffer{})
+	remove, err := cli.promptRemoveAssociatedResources("alpha", "hetzner")
+	require.NoError(t, err)
+	assert.False(t, remove)
+	assert.Contains(t, stdout.String(), "Remove associated resources")
+}
+
+func TestPromptRemoveAssociatedResources_Yes(t *testing.T) {
+	var stdout bytes.Buffer
+	cli := New(bytes.NewBufferString("yes\n"), &stdout, &bytes.Buffer{})
+	remove, err := cli.promptRemoveAssociatedResources("alpha", "hetzner")
+	require.NoError(t, err)
+	assert.True(t, remove)
 }

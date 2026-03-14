@@ -17,12 +17,12 @@ func TestPrimaryPort_UsesValheimQueryPort(t *testing.T) {
 	assert.Equal(t, queryPort, port)
 }
 
-func TestPrimaryPort_FallsBackToFirstRangeStart(t *testing.T) {
+func TestPrimaryPort_FallsBackToSecondRangeStart(t *testing.T) {
 	port, err := primaryPort(gamestatus.Target{
 		Ports: []core.PortRange{{Protocol: "udp", From: 3000, To: 3002}},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, 3000, port)
+	assert.Equal(t, 3001, port)
 }
 
 func TestParseInfoResponse(t *testing.T) {
