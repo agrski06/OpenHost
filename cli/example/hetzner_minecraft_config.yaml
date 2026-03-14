@@ -3,7 +3,7 @@ server:
 provider:
   name: hetzner
   settings:
-    location: fsn1
+    location: nbg1
     plan: cx23
 game:
   name: minecraft

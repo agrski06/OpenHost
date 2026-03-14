@@ -31,7 +31,11 @@ func TestRunDown_ResolvesServerName(t *testing.T) {
 	require.NoError(t, cli.runDown([]string{"alpha"}))
 	assert.Equal(
 		t,
-		"Down is not implemented yet. Known local record: provider=mock id=mock-server-1 name=alpha ip=203.0.113.10\n",
+		"Deleted server mock:mock-server-1 (alpha) at 203.0.113.10\n",
 		stdout.String(),
 	)
+
+	record, err := store.GetRecord("mock", "mock-server-1")
+	require.NoError(t, err)
+	assert.Nil(t, record)
 }

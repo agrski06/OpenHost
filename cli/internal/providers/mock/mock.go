@@ -29,6 +29,17 @@ func (p *Provider) Name() string {
 	return "mock"
 }
 
+func (p *Provider) DeleteServer(id string) error {
+	log.Printf("mock provider: starting DeleteServer id=%q", id)
+	if id == "" {
+		log.Printf("mock provider: rejected delete because server id is empty")
+		return fmt.Errorf("mock: server id cannot be empty")
+	}
+
+	log.Printf("mock provider: deleted fake server id=%q", id)
+	return nil
+}
+
 func (p *Provider) CreateServer(request core.CreateServerRequest) (*core.Server, error) {
 	log.Printf(
 		"mock provider: starting CreateServer name=%q game=%q providerSettingKeys=%v ports=%v userDataBytes=%d",

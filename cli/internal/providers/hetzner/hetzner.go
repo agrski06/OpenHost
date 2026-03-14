@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
@@ -22,18 +23,47 @@ func (p *Provider) Name() string {
 	return "hetzner"
 }
 
+func (p *Provider) DeleteServer(id string) error {
+	if id == "" {
+		return fmt.Errorf("hetzner server id cannot be empty")
+	}
+
+	serverID, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid hetzner server id %q: %w", id, err)
+	}
+
+	client, err := newClientFromEnv()
+	if err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+	server, _, err := client.Server.GetByID(ctx, serverID)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve hetzner server %q before deletion: %w", id, err)
+	}
+	if server == nil {
+		return nil
+	}
+
+	if _, _, err := client.Server.DeleteWithResult(ctx, server); err != nil {
+		return fmt.Errorf("failed to delete hetzner server %q: %w", id, err)
+	}
+
+	return nil
+}
+
 func (p *Provider) CreateServer(request core.CreateServerRequest) (*core.Server, error) {
 	var settings Settings
 	if err := mapstructure.Decode(request.ProviderSettings, &settings); err != nil {
 		return nil, fmt.Errorf("invalid hetzner settings: %w", err)
 	}
 
-	token := os.Getenv("HCLOUD_TOKEN")
-	if token == "" {
-		return nil, fmt.Errorf("HCLOUD_TOKEN environment variable is not set")
+	client, err := newClientFromEnv()
+	if err != nil {
+		return nil, err
 	}
-
-	client := hcloud.NewClient(hcloud.WithToken(token))
 	ctx := context.Background()
 
 	_, anyIPv4, _ := net.ParseCIDR("0.0.0.0/0")
@@ -127,4 +157,13 @@ func (p *Provider) CreateServer(request core.CreateServerRequest) (*core.Server,
 
 func init() {
 	core.RegisterProvider("hetzner", func() core.Provider { return &Provider{} })
+}
+
+func newClientFromEnv() (*hcloud.Client, error) {
+	token := os.Getenv("HCLOUD_TOKEN")
+	if token == "" {
+		return nil, fmt.Errorf("HCLOUD_TOKEN environment variable is not set")
+	}
+
+	return hcloud.NewClient(hcloud.WithToken(token)), nil
 }

@@ -16,4 +16,7 @@ type Provider interface {
 	// CreateServer executes the final step to create and start the server
 	// on the cloud provider, using the prepared configuration.
 	CreateServer(request CreateServerRequest) (*Server, error)
+
+	// DeleteServer removes the server identified by the provider-native ID.
+	DeleteServer(id string) error
 }
