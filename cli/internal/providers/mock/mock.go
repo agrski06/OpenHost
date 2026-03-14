@@ -23,23 +23,29 @@ func (p *Provider) Name() string {
 	return "mock"
 }
 
-func (p *Provider) RunServer(name string, game core.Game, rawSettings map[string]any, gameSettings map[string]any) (core.Server, error) {
-	log.Printf("mock provider: starting RunServer name=%q rawSettingKeys=%v gameSettingKeys=%v", name, sortedKeys(rawSettings), sortedKeys(gameSettings))
+func (p *Provider) CreateServer(request core.CreateServerRequest) (core.Server, error) {
+	log.Printf(
+		"mock provider: starting CreateServer name=%q game=%q providerSettingKeys=%v ports=%v userDataBytes=%d",
+		request.Name,
+		request.GameName,
+		sortedKeys(request.ProviderSettings),
+		request.Ports,
+		len(request.UserData),
+	)
 
-	if name == "" {
+	if request.Name == "" {
 		log.Printf("mock provider: rejected request because server name is empty")
 		return nil, fmt.Errorf("mock: server name cannot be empty")
 	}
-	if game == nil {
-		log.Printf("mock provider: rejected request because game is nil")
-		return nil, fmt.Errorf("mock: game cannot be nil")
+	if request.GameName == "" {
+		log.Printf("mock provider: rejected request because game name is empty")
+		return nil, fmt.Errorf("mock: game name cannot be empty")
 	}
 
-	ports := game.Ports()
-	log.Printf("mock provider: resolved game=%q ports=%v", game.Name(), ports)
+	log.Printf("mock provider: resolved game=%q ports=%v", request.GameName, request.Ports)
 
 	var settings Settings
-	if err := mapstructure.Decode(rawSettings, &settings); err != nil {
+	if err := mapstructure.Decode(request.ProviderSettings, &settings); err != nil {
 		log.Printf("mock provider: failed to decode settings: %v", err)
 		return nil, fmt.Errorf("mock: invalid settings: %w", err)
 	}
@@ -58,14 +64,11 @@ func (p *Provider) RunServer(name string, game core.Game, rawSettings map[string
 		log.Printf("mock provider: using default IP %q", settings.IP)
 	}
 
-	// Exercise the current game bootstrap path so config/game regressions are still
-	// visible during lightweight local runs.
-	initCommand, err := game.BuildInitCommand(gameSettings)
-	if err != nil {
-		log.Printf("mock provider: game bootstrap failed: %v", err)
-		return nil, fmt.Errorf("mock: build init command for game %q: %w", game.Name(), err)
+	if request.UserData == "" {
+		log.Printf("mock provider: rejected request because user-data is empty")
+		return nil, fmt.Errorf("mock: user-data cannot be empty")
 	}
-	log.Printf("mock provider: generated bootstrap script bytes=%d", len(initCommand))
+	log.Printf("mock provider: received bootstrap script bytes=%d", len(request.UserData))
 
 	log.Printf("mock provider: returning fake server ip=%q", settings.IP)
 

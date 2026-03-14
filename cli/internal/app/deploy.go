@@ -26,12 +26,18 @@ func DeployFromConfig(configPath string) (core.Server, error) {
 		return nil, fmt.Errorf("resolve game %q: %w", parsedConfig.Game.Name, err)
 	}
 
-	server, err := provider.RunServer(
-		parsedConfig.Server.Name,
-		game,
-		parsedConfig.Provider.Settings,
-		parsedConfig.Game.Settings,
-	)
+	userData, err := game.BuildInitCommand(parsedConfig.Game.Settings)
+	if err != nil {
+		return nil, fmt.Errorf("build init command for game %q: %w", parsedConfig.Game.Name, err)
+	}
+
+	server, err := provider.CreateServer(core.CreateServerRequest{
+		Name:             parsedConfig.Server.Name,
+		GameName:         game.Name(),
+		Ports:            game.Ports(),
+		ProviderSettings: parsedConfig.Provider.Settings,
+		UserData:         userData,
+	})
 	if err != nil {
 		return nil, fmt.Errorf(
 			"provision server %q with provider %q for game %q: %w",

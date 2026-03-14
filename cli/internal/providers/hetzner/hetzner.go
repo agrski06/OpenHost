@@ -22,9 +22,9 @@ func (p *Provider) Name() string {
 	return "hetzner"
 }
 
-func (p *Provider) RunServer(name string, game core.Game, rawSettings map[string]any, gameSettings map[string]any) (core.Server, error) {
+func (p *Provider) CreateServer(request core.CreateServerRequest) (core.Server, error) {
 	var settings Settings
-	if err := mapstructure.Decode(rawSettings, &settings); err != nil {
+	if err := mapstructure.Decode(request.ProviderSettings, &settings); err != nil {
 		return nil, fmt.Errorf("invalid hetzner settings: %w", err)
 	}
 
@@ -58,7 +58,7 @@ func (p *Provider) RunServer(name string, game core.Game, rawSettings map[string
 	}
 
 	// Dynamic Port Generation
-	for _, pr := range game.Ports() {
+	for _, pr := range request.Ports {
 		proto := hcloud.FirewallRuleProtocolTCP
 		if pr.Protocol == "udp" {
 			proto = hcloud.FirewallRuleProtocolUDP
@@ -67,9 +67,13 @@ func (p *Provider) RunServer(name string, game core.Game, rawSettings map[string
 		rules = append(rules, buildRule(proto, pr.From, pr.To))
 	}
 
+	if len(request.Ports) == 0 {
+		return nil, fmt.Errorf("hetzner provider requires at least one exposed port")
+	}
+
 	// Use a unique firewall name based on the game and its primary port
-	primaryPort := game.Ports()[0].From
-	fwName := fmt.Sprintf("fw-%s-%d", game.Name(), primaryPort)
+	primaryPort := request.Ports[0].From
+	fwName := fmt.Sprintf("fw-%s-%d", request.GameName, primaryPort)
 	fw, _, err := client.Firewall.GetByName(ctx, fwName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for existing firewall: %w", err)
@@ -86,17 +90,12 @@ func (p *Provider) RunServer(name string, game core.Game, rawSettings map[string
 		fw = res.Firewall
 	}
 
-	userData, err := game.BuildInitCommand(gameSettings)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build init command for game %q: %w", game.Name(), err)
-	}
-
 	result, _, err := client.Server.Create(ctx, hcloud.ServerCreateOpts{
-		Name:       name,
+		Name:       request.Name,
 		Image:      &hcloud.Image{Name: "ubuntu-24.04"},
 		ServerType: &hcloud.ServerType{Name: settings.Plan},
 		Location:   &hcloud.Location{Name: settings.Location},
-		UserData:   userData,
+		UserData:   request.UserData,
 		Firewalls: []*hcloud.ServerCreateFirewall{
 			{Firewall: *fw},
 		},
