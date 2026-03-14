@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/openhost/cli/internal/core"
 	"github.com/openhost/cli/internal/state"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,4 +65,41 @@ func TestPromptRemoveAssociatedResources_Yes(t *testing.T) {
 	remove, err := cli.promptRemoveAssociatedResources("alpha", "hetzner")
 	require.NoError(t, err)
 	assert.True(t, remove)
+}
+
+func TestRunDown_PrintsWarningForSharedAssociatedResource(t *testing.T) {
+	stateDir := t.TempDir()
+	t.Setenv("OPENHOST_STATE_DIR", stateDir)
+
+	sharedFirewall := core.ResourceRef{Type: "firewall", ID: "fw-1", Name: "shared-fw"}
+	store := state.NewStore(filepath.Join(stateDir, "instances.json"))
+	require.NoError(t, store.SaveRecord(state.Record{
+		Provider: "mock",
+		ID:       "mock-alpha",
+		Name:     "alpha",
+		Game:     "minecraft",
+		AssociatedResources: []core.ResourceRef{
+			sharedFirewall,
+		},
+		CreatedAt: "2026-03-14T00:00:00Z",
+	}))
+	require.NoError(t, store.SaveRecord(state.Record{
+		Provider: "mock",
+		ID:       "mock-beta",
+		Name:     "beta",
+		Game:     "minecraft",
+		AssociatedResources: []core.ResourceRef{
+			sharedFirewall,
+		},
+		CreatedAt: "2026-03-14T00:01:00Z",
+	}))
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cli := New(bytes.NewBuffer(nil), &stdout, &stderr)
+
+	require.NoError(t, cli.runDown([]string{removeAssociatedResourcesFlag, "alpha"}))
+	output := stdout.String()
+	assert.Contains(t, output, "Deleted server mock:mock-alpha (alpha)")
+	assert.Contains(t, output, "Warning: associated resource firewall:fw-1 (shared-fw) was not removed because it is also referenced by mock:mock-beta (beta)")
 }

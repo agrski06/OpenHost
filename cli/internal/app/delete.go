@@ -7,11 +7,12 @@ import (
 	"github.com/openhost/cli/internal/state"
 )
 
-func DeleteKnownServer(selector string) (*state.Record, error) {
-	return DeleteKnownServerWithOptions(selector, false)
+type DeleteResult struct {
+	Record   *state.Record
+	Warnings []string
 }
 
-func DeleteKnownServerWithOptions(selector string, removeAssociatedResources bool) (*state.Record, error) {
+func DeleteKnownServerWithOptions(selector string, removeAssociatedResources bool) (*DeleteResult, error) {
 	store, err := state.DefaultStore()
 	if err != nil {
 		return nil, err
@@ -24,6 +25,7 @@ func DeleteKnownServerWithOptions(selector string, removeAssociatedResources boo
 	if record == nil {
 		return nil, fmt.Errorf("no local state record found for %q", selector)
 	}
+	result := &DeleteResult{Record: record}
 
 	provider, err := core.GetProvider(record.Provider)
 	if err != nil {
@@ -35,6 +37,12 @@ func DeleteKnownServerWithOptions(selector string, removeAssociatedResources boo
 		GameName:                  record.Game,
 		AssociatedResources:       record.AssociatedResources,
 		RemoveAssociatedResources: removeAssociatedResources,
+	}
+	if removeAssociatedResources {
+		deleteRequest.AssociatedResources, result.Warnings, err = filterSharedAssociatedResources(store, *record)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if gameDefinition, err := core.GetGame(record.Game); err == nil {
 		deleteRequest.GameName = gameDefinition.Name()
@@ -49,7 +57,57 @@ func DeleteKnownServerWithOptions(selector string, removeAssociatedResources boo
 		return nil, fmt.Errorf("remove local state for server %q (%s:%s): %w", record.Name, record.Provider, record.ID, err)
 	}
 
-	return record, nil
+	return result, nil
+}
+
+func filterSharedAssociatedResources(store *state.Store, record state.Record) ([]core.ResourceRef, []string, error) {
+	records, err := store.ListRecords()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	allowed := make([]core.ResourceRef, 0, len(record.AssociatedResources))
+	warnings := []string{}
+	for _, resource := range record.AssociatedResources {
+		sharedWith := findOtherResourceReferences(records, record, resource)
+		if len(sharedWith) == 0 {
+			allowed = append(allowed, resource)
+			continue
+		}
+
+		warning := fmt.Sprintf(
+			"associated resource %s:%s (%s) was not removed because it is also referenced by %s",
+			resource.Type,
+			resource.ID,
+			resource.Name,
+			sharedWith[0],
+		)
+		if len(sharedWith) > 1 {
+			warning = fmt.Sprintf("%s and %d other tracked server(s)", warning, len(sharedWith)-1)
+		}
+		warnings = append(warnings, warning)
+	}
+
+	return allowed, warnings, nil
+}
+
+func findOtherResourceReferences(records []state.Record, current state.Record, resource core.ResourceRef) []string {
+	references := []string{}
+	for _, other := range records {
+		if other.Provider != current.Provider {
+			continue
+		}
+		if other.Provider == current.Provider && other.ID == current.ID {
+			continue
+		}
+		for _, otherResource := range other.AssociatedResources {
+			if otherResource.Type == resource.Type && otherResource.ID == resource.ID {
+				references = append(references, fmt.Sprintf("%s:%s (%s)", other.Provider, other.ID, other.Name))
+				break
+			}
+		}
+	}
+	return references
 }
 
 func findKnownServerInStore(store *state.Store, selector string) (*state.Record, error) {

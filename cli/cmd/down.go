@@ -37,10 +37,11 @@ func (c *CLI) runDown(args []string) error {
 		removeAssociated = *removeAssociatedResources
 	}
 
-	record, err = app.DeleteKnownServerWithOptions(selector, removeAssociated)
+	deleteResult, err := app.DeleteKnownServerWithOptions(selector, removeAssociated)
 	if err != nil {
 		return err
 	}
+	record = deleteResult.Record
 
 	_, err = fmt.Fprintf(
 		c.stdout,
@@ -50,7 +51,15 @@ func (c *CLI) runDown(args []string) error {
 		record.Name,
 		record.PublicIP,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	for _, warning := range deleteResult.Warnings {
+		if _, err := fmt.Fprintf(c.stdout, "Warning: %s\n", warning); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *CLI) parseDownArgs(args []string) (selector string, removeAssociatedResources *bool, err error) {
