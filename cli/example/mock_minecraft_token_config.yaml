@@ -1,0 +1,11 @@
+server:
+  name: "mock-minecraft-token-server"
+provider:
+  name: mock
+  settings:
+    ip: "203.0.113.42"
+    require_token: true
+    token_env_var: OPENHOST_MOCK_TOKEN
+game:
+  name: minecraft
+

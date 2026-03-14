@@ -3,20 +3,26 @@ package mock
 import (
 	"fmt"
 	"log"
+	"os"
 	"sort"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/openhost/cli/internal/core"
 )
 
-const defaultIP = "203.0.113.10"
+const (
+	defaultIP          = "203.0.113.10"
+	defaultTokenEnvVar = "OPENHOST_MOCK_TOKEN"
+)
 
 type Provider struct{}
 
 type Settings struct {
-	IP          string `mapstructure:"ip"`
-	Fail        bool   `mapstructure:"fail"`
-	FailMessage string `mapstructure:"fail_message"`
+	IP           string `mapstructure:"ip"`
+	Fail         bool   `mapstructure:"fail"`
+	FailMessage  string `mapstructure:"fail_message"`
+	RequireToken bool   `mapstructure:"require_token"`
+	TokenEnvVar  string `mapstructure:"token_env_var"`
 }
 
 func (p *Provider) Name() string {
@@ -49,7 +55,28 @@ func (p *Provider) CreateServer(request core.CreateServerRequest) (*core.Server,
 		log.Printf("mock provider: failed to decode settings: %v", err)
 		return nil, fmt.Errorf("mock: invalid settings: %w", err)
 	}
-	log.Printf("mock provider: decoded settings ip=%q fail=%t failMessageSet=%t", settings.IP, settings.Fail, settings.FailMessage != "")
+	log.Printf(
+		"mock provider: decoded settings ip=%q fail=%t failMessageSet=%t requireToken=%t tokenEnvVar=%q",
+		settings.IP,
+		settings.Fail,
+		settings.FailMessage != "",
+		settings.RequireToken,
+		settings.TokenEnvVar,
+	)
+
+	if settings.TokenEnvVar == "" {
+		settings.TokenEnvVar = defaultTokenEnvVar
+	}
+
+	if settings.RequireToken {
+		token := os.Getenv(settings.TokenEnvVar)
+		if token == "" {
+			log.Printf("mock provider: required token env var %q is not set", settings.TokenEnvVar)
+			return nil, fmt.Errorf("mock: %s environment variable is not set", settings.TokenEnvVar)
+		}
+
+		log.Printf("mock provider: resolved token from env var %q (length=%d)", settings.TokenEnvVar, len(token))
+	}
 
 	if settings.Fail {
 		if settings.FailMessage == "" {
