@@ -28,4 +28,4 @@ go.work
 .openhost/
 *.env
 credentials.env
-
+openhost_config.yaml

@@ -70,3 +70,50 @@ func TestStoreSaveRecordUpsertsByProviderAndID(t *testing.T) {
 	require.Len(t, snapshot.Servers, 1)
 	assert.Equal(t, second, snapshot.Servers[0])
 }
+
+func TestStoreLookupHelpers(t *testing.T) {
+	store := NewStore(filepath.Join(t.TempDir(), "instances.json"))
+	record := Record{
+		Provider:   "mock",
+		ID:         "mock-server-1",
+		Name:       "server-1",
+		PublicIP:   "203.0.113.10",
+		Game:       "minecraft",
+		ConfigPath: "example/mock_minecraft_config.yaml",
+		CreatedAt:  "2026-03-14T00:00:00Z",
+	}
+
+	require.NoError(t, store.SaveRecord(record))
+
+	records, err := store.ListRecords()
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	assert.Equal(t, record, records[0])
+
+	byID, err := store.GetRecord("mock", "mock-server-1")
+	require.NoError(t, err)
+	require.NotNil(t, byID)
+	assert.Equal(t, record, *byID)
+
+	byName, err := store.FindByName("server-1")
+	require.NoError(t, err)
+	require.NotNil(t, byName)
+	assert.Equal(t, record, *byName)
+}
+
+func TestStoreRemoveRecord(t *testing.T) {
+	store := NewStore(filepath.Join(t.TempDir(), "instances.json"))
+	record := Record{
+		Provider:  "mock",
+		ID:        "mock-server-1",
+		Name:      "server-1",
+		CreatedAt: "2026-03-14T00:00:00Z",
+	}
+
+	require.NoError(t, store.SaveRecord(record))
+	require.NoError(t, store.RemoveRecord("mock", "mock-server-1"))
+
+	records, err := store.ListRecords()
+	require.NoError(t, err)
+	assert.Empty(t, records)
+}

@@ -116,6 +116,110 @@ func (s *Store) SaveRecord(record Record) error {
 	return s.writeSnapshot(*snapshot)
 }
 
+func (s *Store) ListRecords() ([]Record, error) {
+	if s == nil {
+		return nil, fmt.Errorf("state store is nil")
+	}
+
+	snapshot, err := s.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	records := make([]Record, len(snapshot.Servers))
+	copy(records, snapshot.Servers)
+	return records, nil
+}
+
+func (s *Store) GetRecord(provider string, id string) (*Record, error) {
+	if s == nil {
+		return nil, fmt.Errorf("state store is nil")
+	}
+	if provider == "" {
+		return nil, fmt.Errorf("provider cannot be empty")
+	}
+	if id == "" {
+		return nil, fmt.Errorf("id cannot be empty")
+	}
+
+	snapshot, err := s.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, record := range snapshot.Servers {
+		if record.Provider == provider && record.ID == id {
+			recordCopy := record
+			return &recordCopy, nil
+		}
+	}
+
+	return nil, nil
+}
+
+func (s *Store) FindByName(name string) (*Record, error) {
+	if s == nil {
+		return nil, fmt.Errorf("state store is nil")
+	}
+	if name == "" {
+		return nil, fmt.Errorf("name cannot be empty")
+	}
+
+	snapshot, err := s.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	var match *Record
+	for _, record := range snapshot.Servers {
+		if record.Name != name {
+			continue
+		}
+		if match != nil {
+			return nil, fmt.Errorf("multiple state records found with name %q", name)
+		}
+		recordCopy := record
+		match = &recordCopy
+	}
+
+	return match, nil
+}
+
+func (s *Store) RemoveRecord(provider string, id string) error {
+	if s == nil {
+		return fmt.Errorf("state store is nil")
+	}
+	if provider == "" {
+		return fmt.Errorf("provider cannot be empty")
+	}
+	if id == "" {
+		return fmt.Errorf("id cannot be empty")
+	}
+
+	snapshot, err := s.Load()
+	if err != nil {
+		return err
+	}
+
+	filtered := make([]Record, 0, len(snapshot.Servers))
+	removed := false
+	for _, record := range snapshot.Servers {
+		if record.Provider == provider && record.ID == id {
+			removed = true
+			continue
+		}
+		filtered = append(filtered, record)
+	}
+
+	if !removed {
+		return nil
+	}
+
+	snapshot.Servers = filtered
+	snapshot.Version = currentVersion
+	return s.writeSnapshot(*snapshot)
+}
+
 func (s *Store) writeSnapshot(snapshot Snapshot) error {
 	dir := filepath.Dir(s.path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
