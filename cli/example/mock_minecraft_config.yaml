@@ -1,0 +1,9 @@
+server:
+  name: "mock-minecraft-server"
+provider:
+  name: mock
+  settings:
+    ip: "203.0.113.25"
+game:
+  name: minecraft
+
