@@ -39,5 +39,5 @@ func TestRunStatus_PrintsCombinedStatus(t *testing.T) {
 	assert.Contains(t, output, "Infrastructure:")
 	assert.Contains(t, output, "State: running")
 	assert.Contains(t, output, "Game:")
-	assert.Contains(t, output, "Detail: game status not implemented yet")
+	assert.Contains(t, output, "Detail: minecraft status check not implemented yet")
 }

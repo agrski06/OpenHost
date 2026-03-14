@@ -14,6 +14,10 @@ import (
 	// Games registration
 	_ "github.com/openhost/cli/internal/games/minecraft"
 	_ "github.com/openhost/cli/internal/games/valheim"
+
+	// Game status checker registration
+	_ "github.com/openhost/cli/internal/gamestatus/minecraft"
+	_ "github.com/openhost/cli/internal/gamestatus/valheim"
 )
 
 func main() {

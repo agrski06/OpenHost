@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/openhost/cli/internal/core"
+	"github.com/openhost/cli/internal/gamestatus"
 	"github.com/openhost/cli/internal/state"
 )
 
@@ -82,6 +83,46 @@ func GetKnownServerStatus(selector string) (*ServerStatus, error) {
 	}
 	if report.Infrastructure.PublicIP == "" {
 		report.Infrastructure.PublicIP = record.PublicIP
+	}
+
+	gameDefinition, err := core.GetGame(record.Game)
+	if err != nil {
+		report.Game.State = "unknown"
+		report.Game.Detail = fmt.Sprintf("resolve game %q: %v", record.Game, err)
+		return report, nil
+	}
+
+	if report.Infrastructure.State != core.InfrastructureStateRunning {
+		report.Game.State = "unknown"
+		report.Game.Detail = fmt.Sprintf("game status skipped because infrastructure is %s", report.Infrastructure.State)
+		return report, nil
+	}
+	if report.Infrastructure.PublicIP == "" {
+		report.Game.State = "unknown"
+		report.Game.Detail = "game status skipped because no public IP is available"
+		return report, nil
+	}
+
+	checker, err := gamestatus.Get(record.Game)
+	if err != nil {
+		report.Game.State = "unknown"
+		report.Game.Detail = err.Error()
+		return report, nil
+	}
+
+	gameReport, err := checker.Check(gamestatus.Target{
+		GameName: record.Game,
+		PublicIP: report.Infrastructure.PublicIP,
+		Ports:    gameDefinition.Ports(),
+	})
+	if err != nil {
+		report.Game.State = string(gamestatus.StateQueryFailed)
+		report.Game.Detail = err.Error()
+		return report, nil
+	}
+	if gameReport != nil {
+		report.Game.State = string(gameReport.State)
+		report.Game.Detail = gameReport.Detail
 	}
 
 	return report, nil
