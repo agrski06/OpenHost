@@ -21,7 +21,7 @@ func (g *Minecraft) Ports() []core.PortRange {
 	}
 }
 
-func (g *Minecraft) BuildInitCommand(rawSettings map[string]any) string {
+func (g *Minecraft) BuildInitCommand(rawSettings map[string]any) (string, error) {
 	primaryPort := g.Ports()[0].From
 
 	data := struct {
@@ -41,15 +41,15 @@ func (g *Minecraft) BuildInitCommand(rawSettings map[string]any) string {
 
 	tmpl, err := template.New("mc_init").Parse(initScript)
 	if err != nil {
-		return "# Error parsing template: " + err.Error()
+		return "", err
 	}
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
-		return "# Error executing template: " + err.Error()
+		return "", err
 	}
 
-	return buf.String()
+	return buf.String(), nil
 }
 
 func init() {

@@ -27,10 +27,11 @@ func (g *Valheim) Ports() []core.PortRange {
 }
 func (g *Valheim) Protocol() string { return "udp" }
 
-func (g *Valheim) BuildInitCommand(rawSettings map[string]any) string {
-	var s Settings
-	s.World = "Dedicated"
-	_ = mapstructure.Decode(rawSettings, &s)
+func (g *Valheim) BuildInitCommand(rawSettings map[string]any) (string, error) {
+	s := Settings{World: "Dedicated"}
+	if err := mapstructure.Decode(rawSettings, &s); err != nil {
+		return "", err
+	}
 
 	// Pull range from the interface definition
 	portRange := g.Ports()[0]
@@ -53,15 +54,15 @@ func (g *Valheim) BuildInitCommand(rawSettings map[string]any) string {
 
 	tmpl, err := template.New("valheim_init").Parse(initScript)
 	if err != nil {
-		return "# Error parsing template: " + err.Error()
+		return "", err
 	}
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
-		return "# Error executing template: " + err.Error()
+		return "", err
 	}
 
-	return buf.String()
+	return buf.String(), nil
 }
 
 func init() {

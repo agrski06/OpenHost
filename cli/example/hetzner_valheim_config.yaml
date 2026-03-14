@@ -3,6 +3,7 @@ server:
 provider:
   name: hetzner
   settings:
+    location: fsn1
     plan: cx23
 game:
   name: valheim

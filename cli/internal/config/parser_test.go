@@ -9,20 +9,18 @@ import (
 )
 
 func TestParseYAML_ValidConfig(t *testing.T) {
-	// Create a temporary valid YAML file
 	content := `
-name: "test-server"
+server:
+  name: "test-server"
 provider:
   name: "hetzner"
-  region: "fsn1"
-  plan: "cx11"
+  settings:
+    location: "fsn1"
+    plan: "cx11"
 game:
-  type: "minecraft"
-  image: "itzg/minecraft-server"
-  persistence: "10GB"
-automation:
-  auto-stop-timeout: "1h"
-  trigger: "no-players"
+  name: "minecraft"
+  settings:
+    difficulty: "hard"
 `
 	filePath := "test_valid.yaml"
 	err := os.WriteFile(filePath, []byte(content), 0644)
@@ -33,28 +31,22 @@ automation:
 	assert.NoError(t, err)
 	assert.NotNil(t, cfg)
 
-	assert.Equal(t, "test-server", cfg.Name)
+	assert.Equal(t, "test-server", cfg.Server.Name)
 	assert.Equal(t, "hetzner", cfg.Provider.Name)
-	assert.Equal(t, "fsn1", cfg.Provider.Region)
-	assert.Equal(t, "cx11", cfg.Provider.Plan)
-	assert.Equal(t, "minecraft", cfg.Game.Type)
-	assert.Equal(t, "itzg/minecraft-server", cfg.Game.Image)
-	assert.Equal(t, "10GB", cfg.Game.Persistence)
-	assert.Equal(t, "1h", cfg.Automation.AutoStopTimeout)
-	assert.Equal(t, "no-players", cfg.Automation.Trigger)
+	assert.Equal(t, "fsn1", cfg.Provider.Settings["location"])
+	assert.Equal(t, "cx11", cfg.Provider.Settings["plan"])
+	assert.Equal(t, "minecraft", cfg.Game.Name)
+	assert.Equal(t, "hard", cfg.Game.Settings["difficulty"])
 }
 
-func TestParseYAML_Defaults(t *testing.T) {
-	// Create a temporary YAML file with missing optional fields
+func TestParseYAML_InitializesMissingSettingsMaps(t *testing.T) {
 	content := `
-name: "test-server-defaults"
+server:
+  name: "test-server-defaults"
 provider:
   name: "hetzner"
-  region: "nbg1"
-  plan: "cx21"
 game:
-  type: "valheim"
-  image: "lloesche/valheim-server"
+  name: "valheim"
 `
 	filePath := "test_defaults.yaml"
 	err := os.WriteFile(filePath, []byte(content), 0644)
@@ -65,12 +57,11 @@ game:
 	assert.NoError(t, err)
 	assert.NotNil(t, cfg)
 
-	assert.Equal(t, "none", cfg.Game.Persistence)
-	assert.Equal(t, "disabled", cfg.Automation.AutoStopTimeout)
+	assert.NotNil(t, cfg.Provider.Settings)
+	assert.NotNil(t, cfg.Game.Settings)
 }
 
 func TestParseYAML_InvalidConfig(t *testing.T) {
-	// Test cases for invalid configurations
 	tests := []struct {
 		name        string
 		content     string
@@ -81,42 +72,52 @@ func TestParseYAML_InvalidConfig(t *testing.T) {
 			content: `
 provider:
   name: "hetzner"
-  region: "fsn1"
-  plan: "cx11"
+  settings:
+    location: "fsn1"
+    plan: "cx11"
 game:
-  type: "minecraft"
-  image: "itzg/minecraft-server"
+  name: "minecraft"
 `,
 			expectedErr: "config validation failed: server name cannot be empty",
 		},
 		{
-			name: "missing provider name",
-			content: `
-name: "test-server"
-provider:
-  region: "fsn1"
-  plan: "cx11"
-game:
-  type: "minecraft"
-  image: "itzg/minecraft-server"
-`,
-			expectedErr: "config validation failed: provider name cannot be empty",
-		},
-		{
-			name: "invalid auto-stop-timeout",
+			name: "top-level name is rejected",
 			content: `
 name: "test-server"
 provider:
   name: "hetzner"
-  region: "fsn1"
+  settings:
+    location: "fsn1"
+    plan: "cx11"
+game:
+  name: "minecraft"
+`,
+			expectedErr: "invalid config shape: top-level name is not supported; use server.name",
+		},
+		{
+			name: "flat provider plan is rejected",
+			content: `
+server:
+  name: "test-server"
+provider:
+  name: "hetzner"
   plan: "cx11"
 game:
-  type: "minecraft"
-  image: "itzg/minecraft-server"
-automation:
-  auto-stop-timeout: "invalid-duration"
+  name: "minecraft"
 `,
-			expectedErr: "config validation failed: invalid auto-stop-timeout format: time: invalid duration \"invalid-duration\"",
+			expectedErr: "invalid config shape: provider.plan is not supported; use provider.settings.plan",
+		},
+		{
+			name: "game type alias is rejected",
+			content: `
+server:
+  name: "test-server"
+provider:
+  name: "hetzner"
+game:
+  type: "minecraft"
+`,
+			expectedErr: "invalid config shape: game.type is not supported; use game.name",
 		},
 	}
 

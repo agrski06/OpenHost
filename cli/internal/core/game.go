@@ -9,5 +9,5 @@ type PortRange struct {
 type Game interface {
 	Name() string
 	Ports() []PortRange
-	BuildInitCommand(rawSettings map[string]any) string
+	BuildInitCommand(rawSettings map[string]any) (string, error)
 }

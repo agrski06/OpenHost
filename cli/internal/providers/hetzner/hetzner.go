@@ -86,12 +86,17 @@ func (p *Provider) RunServer(name string, game core.Game, rawSettings map[string
 		fw = res.Firewall
 	}
 
+	userData, err := game.BuildInitCommand(gameSettings)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build init command for game %q: %w", game.Name(), err)
+	}
+
 	result, _, err := client.Server.Create(ctx, hcloud.ServerCreateOpts{
 		Name:       name,
 		Image:      &hcloud.Image{Name: "ubuntu-24.04"},
 		ServerType: &hcloud.ServerType{Name: settings.Plan},
 		Location:   &hcloud.Location{Name: settings.Location},
-		UserData:   game.BuildInitCommand(gameSettings),
+		UserData:   userData,
 		Firewalls: []*hcloud.ServerCreateFirewall{
 			{Firewall: *fw},
 		},

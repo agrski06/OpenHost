@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"sort"
-	"strings"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/openhost/cli/internal/core"
@@ -61,12 +60,12 @@ func (p *Provider) RunServer(name string, game core.Game, rawSettings map[string
 
 	// Exercise the current game bootstrap path so config/game regressions are still
 	// visible during lightweight local runs.
-	initCommand := game.BuildInitCommand(gameSettings)
-	if strings.HasPrefix(initCommand, "# Error") {
-		log.Printf("mock provider: game bootstrap returned error-like output: %s", initCommand)
-	} else {
-		log.Printf("mock provider: generated bootstrap script bytes=%d", len(initCommand))
+	initCommand, err := game.BuildInitCommand(gameSettings)
+	if err != nil {
+		log.Printf("mock provider: game bootstrap failed: %v", err)
+		return nil, fmt.Errorf("mock: build init command for game %q: %w", game.Name(), err)
 	}
+	log.Printf("mock provider: generated bootstrap script bytes=%d", len(initCommand))
 
 	log.Printf("mock provider: returning fake server ip=%q", settings.IP)
 
