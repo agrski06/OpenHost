@@ -23,7 +23,7 @@ func (p *Provider) Name() string {
 	return "mock"
 }
 
-func (p *Provider) CreateServer(request core.CreateServerRequest) (core.Server, error) {
+func (p *Provider) CreateServer(request core.CreateServerRequest) (*core.Server, error) {
 	log.Printf(
 		"mock provider: starting CreateServer name=%q game=%q providerSettingKeys=%v ports=%v userDataBytes=%d",
 		request.Name,
@@ -72,15 +72,12 @@ func (p *Provider) CreateServer(request core.CreateServerRequest) (core.Server, 
 
 	log.Printf("mock provider: returning fake server ip=%q", settings.IP)
 
-	return &Server{ip: settings.IP}, nil
-}
-
-type Server struct {
-	ip string
-}
-
-func (s *Server) IP() string {
-	return s.ip
+	return &core.Server{
+		ID:       fmt.Sprintf("mock-%s", request.Name),
+		Provider: p.Name(),
+		Name:     request.Name,
+		PublicIP: settings.IP,
+	}, nil
 }
 
 func init() {

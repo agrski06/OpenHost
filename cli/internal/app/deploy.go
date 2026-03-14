@@ -10,7 +10,7 @@ import (
 // DeployFromConfig parses a config file, resolves the registered provider and
 // game implementations, and provisions the server through the current runtime
 // flow.
-func DeployFromConfig(configPath string) (core.Server, error) {
+func DeployFromConfig(configPath string) (*core.Server, error) {
 	parsedConfig, err := config.ParseYAML(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("parse config %q: %w", configPath, err)

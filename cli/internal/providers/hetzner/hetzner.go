@@ -22,7 +22,7 @@ func (p *Provider) Name() string {
 	return "hetzner"
 }
 
-func (p *Provider) CreateServer(request core.CreateServerRequest) (core.Server, error) {
+func (p *Provider) CreateServer(request core.CreateServerRequest) (*core.Server, error) {
 	var settings Settings
 	if err := mapstructure.Decode(request.ProviderSettings, &settings); err != nil {
 		return nil, fmt.Errorf("invalid hetzner settings: %w", err)
@@ -112,12 +112,18 @@ func (p *Provider) CreateServer(request core.CreateServerRequest) (core.Server, 
 		return nil, fmt.Errorf("failed to retrieve server details: %w", err)
 	}
 
-	return &Server{ip: server.PublicNet.IPv4.IP.String()}, nil
+	publicIP := ""
+	if server.PublicNet.IPv4.IP != nil {
+		publicIP = server.PublicNet.IPv4.IP.String()
+	}
+
+	return &core.Server{
+		ID:       fmt.Sprintf("%d", server.ID),
+		Provider: p.Name(),
+		Name:     server.Name,
+		PublicIP: publicIP,
+	}, nil
 }
-
-type Server struct{ ip string }
-
-func (s *Server) IP() string { return s.ip }
 
 func init() {
 	core.RegisterProvider("hetzner", func() core.Provider { return &Provider{} })

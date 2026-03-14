@@ -15,5 +15,5 @@ type Provider interface {
 
 	// CreateServer executes the final step to create and start the server
 	// on the cloud provider, using the prepared configuration.
-	CreateServer(request CreateServerRequest) (Server, error)
+	CreateServer(request CreateServerRequest) (*Server, error)
 }
