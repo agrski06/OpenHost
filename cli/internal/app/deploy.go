@@ -2,9 +2,12 @@ package app
 
 import (
 	"fmt"
+	"path/filepath"
+	"time"
 
 	"github.com/openhost/cli/internal/config"
 	"github.com/openhost/cli/internal/core"
+	"github.com/openhost/cli/internal/state"
 )
 
 // DeployFromConfig parses a config file, resolves the registered provider and
@@ -48,5 +51,45 @@ func DeployFromConfig(configPath string) (*core.Server, error) {
 		)
 	}
 
+	stateStore, err := state.DefaultStore()
+	if err != nil {
+		return nil, fmt.Errorf(
+			"resolve state store for deployed server provider=%q id=%q ip=%q after config %q: %w",
+			server.Provider,
+			server.ID,
+			server.PublicIP,
+			configPath,
+			err,
+		)
+	}
+
+	if err := stateStore.SaveRecord(state.Record{
+		Provider:   server.Provider,
+		ID:         server.ID,
+		Name:       server.Name,
+		PublicIP:   server.PublicIP,
+		Game:       game.Name(),
+		ConfigPath: absoluteConfigPath(configPath),
+		CreatedAt:  time.Now().UTC().Format(time.RFC3339),
+	}); err != nil {
+		return nil, fmt.Errorf(
+			"persist state for deployed server provider=%q id=%q ip=%q after config %q: %w",
+			server.Provider,
+			server.ID,
+			server.PublicIP,
+			configPath,
+			err,
+		)
+	}
+
 	return server, nil
+}
+
+func absoluteConfigPath(configPath string) string {
+	absolutePath, err := filepath.Abs(configPath)
+	if err != nil {
+		return configPath
+	}
+
+	return absolutePath
 }
