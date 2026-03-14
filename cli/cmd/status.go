@@ -15,27 +15,30 @@ func (c *CLI) runStatus(args []string) error {
 		return c.runList(nil)
 	}
 
-	record, err := app.FindKnownServer(args[0])
+	report, err := app.GetKnownServerStatus(args[0])
 	if err != nil {
 		return err
 	}
-	if record == nil {
-		return fmt.Errorf("no local state record found for %q", args[0])
-	}
-	return c.printRecord(*record)
+	return c.printStatus(*report)
 }
 
-func (c *CLI) printRecord(record state.Record) error {
+func (c *CLI) printStatus(report app.ServerStatus) error {
 	_, err := fmt.Fprintf(
 		c.stdout,
-		"Provider: %s\nID: %s\nName: %s\nGame: %s\nIP: %s\nConfig: %s\nCreated: %s\n",
-		record.Provider,
-		record.ID,
-		record.Name,
-		record.Game,
-		record.PublicIP,
-		record.ConfigPath,
-		record.CreatedAt,
+		"Name: %s\nProvider: %s\nProvider ID: %s\n\nLocal:\n  State: %s\n  Detail: %s\n  Config: %s\n  Created: %s\n\nInfrastructure:\n  State: %s\n  Detail: %s\n  Name: %s\n  Public IP: %s\n\nGame:\n  State: %s\n  Detail: %s\n",
+		report.Record.Name,
+		report.Record.Provider,
+		report.Record.ID,
+		report.Local.State,
+		report.Local.Detail,
+		report.Record.ConfigPath,
+		report.Record.CreatedAt,
+		report.Infrastructure.State,
+		report.Infrastructure.Detail,
+		report.Infrastructure.Name,
+		report.Infrastructure.PublicIP,
+		report.Game.State,
+		report.Game.Detail,
 	)
 	return err
 }

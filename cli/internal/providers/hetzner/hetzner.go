@@ -23,6 +23,48 @@ func (p *Provider) Name() string {
 	return "hetzner"
 }
 
+func (p *Provider) GetServerStatus(id string) (*core.InfrastructureStatus, error) {
+	if id == "" {
+		return nil, fmt.Errorf("hetzner server id cannot be empty")
+	}
+
+	serverID, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid hetzner server id %q: %w", id, err)
+	}
+
+	client, err := newClientFromEnv()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := context.Background()
+	server, _, err := client.Server.GetByID(ctx, serverID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve hetzner server %q: %w", id, err)
+	}
+	if server == nil {
+		return &core.InfrastructureStatus{
+			ID:     id,
+			State:  core.InfrastructureStateNotFound,
+			Detail: "server not found in Hetzner",
+		}, nil
+	}
+
+	publicIP := ""
+	if server.PublicNet.IPv4.IP != nil {
+		publicIP = server.PublicNet.IPv4.IP.String()
+	}
+
+	return &core.InfrastructureStatus{
+		ID:       id,
+		Name:     server.Name,
+		PublicIP: publicIP,
+		State:    mapServerState(server.Status),
+		Detail:   fmt.Sprintf("hetzner server status=%s", server.Status),
+	}, nil
+}
+
 func (p *Provider) DeleteServer(id string) error {
 	if id == "" {
 		return fmt.Errorf("hetzner server id cannot be empty")
@@ -157,6 +199,29 @@ func (p *Provider) CreateServer(request core.CreateServerRequest) (*core.Server,
 
 func init() {
 	core.RegisterProvider("hetzner", func() core.Provider { return &Provider{} })
+}
+
+func mapServerState(status hcloud.ServerStatus) core.InfrastructureState {
+	switch status {
+	case hcloud.ServerStatusStarting:
+		return core.InfrastructureStateCreating
+	case hcloud.ServerStatusRunning:
+		return core.InfrastructureStateRunning
+	case hcloud.ServerStatusStopping:
+		return core.InfrastructureStateDeleting
+	case hcloud.ServerStatusOff:
+		return core.InfrastructureStateStopped
+	case hcloud.ServerStatusDeleting:
+		return core.InfrastructureStateDeleting
+	case hcloud.ServerStatusMigrating:
+		return core.InfrastructureStateCreating
+	case hcloud.ServerStatusRebuilding:
+		return core.InfrastructureStateCreating
+	case hcloud.ServerStatusUnknown:
+		return core.InfrastructureStateUnknown
+	default:
+		return core.InfrastructureStateUnknown
+	}
 }
 
 func newClientFromEnv() (*hcloud.Client, error) {

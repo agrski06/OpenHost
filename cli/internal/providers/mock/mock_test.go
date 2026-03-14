@@ -107,3 +107,21 @@ func TestProviderDeleteServer_RejectsEmptyID(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "server id cannot be empty")
 }
+
+func TestProviderGetServerStatus_Running(t *testing.T) {
+	provider := &Provider{}
+	status, err := provider.GetServerStatus("mock-alpha")
+	require.NoError(t, err)
+	require.NotNil(t, status)
+	assert.Equal(t, core.InfrastructureStateRunning, status.State)
+	assert.Equal(t, "alpha", status.Name)
+	assert.Equal(t, defaultIP, status.PublicIP)
+}
+
+func TestProviderGetServerStatus_NotFound(t *testing.T) {
+	provider := &Provider{}
+	status, err := provider.GetServerStatus("external-id")
+	require.NoError(t, err)
+	require.NotNil(t, status)
+	assert.Equal(t, core.InfrastructureStateNotFound, status.State)
+}

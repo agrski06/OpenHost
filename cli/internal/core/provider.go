@@ -17,6 +17,10 @@ type Provider interface {
 	// on the cloud provider, using the prepared configuration.
 	CreateServer(request CreateServerRequest) (*Server, error)
 
+	// GetServerStatus retrieves the infrastructure status for the
+	// server identified by the provider-native ID.
+	GetServerStatus(id string) (*InfrastructureStatus, error)
+
 	// DeleteServer removes the server identified by the provider-native ID.
 	DeleteServer(id string) error
 }

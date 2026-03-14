@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/openhost/cli/internal/core"
@@ -27,6 +28,33 @@ type Settings struct {
 
 func (p *Provider) Name() string {
 	return "mock"
+}
+
+func (p *Provider) GetServerStatus(id string) (*core.InfrastructureStatus, error) {
+	log.Printf("mock provider: starting GetServerStatus id=%q", id)
+	if id == "" {
+		log.Printf("mock provider: rejected status because server id is empty")
+		return nil, fmt.Errorf("mock: server id cannot be empty")
+	}
+	if !strings.HasPrefix(id, "mock-") {
+		log.Printf("mock provider: server id %q not found", id)
+		return &core.InfrastructureStatus{
+			ID:     id,
+			State:  core.InfrastructureStateNotFound,
+			Detail: "mock server id not found",
+		}, nil
+	}
+
+	name := strings.TrimPrefix(id, "mock-")
+	status := &core.InfrastructureStatus{
+		ID:       id,
+		Name:     name,
+		PublicIP: defaultIP,
+		State:    core.InfrastructureStateRunning,
+		Detail:   "mock provider always reports synthetic servers as running",
+	}
+	log.Printf("mock provider: returning status id=%q state=%q", id, status.State)
+	return status, nil
 }
 
 func (p *Provider) DeleteServer(id string) error {
