@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -24,6 +25,7 @@ type Settings struct {
 	FailMessage  string `mapstructure:"fail_message"`
 	RequireToken bool   `mapstructure:"require_token"`
 	TokenEnvVar  string `mapstructure:"token_env_var"`
+	UserDataPath string `mapstructure:"user_data_output_path"`
 }
 
 func (p *Provider) Name() string {
@@ -95,12 +97,13 @@ func (p *Provider) CreateServer(request core.CreateServerRequest) (*core.Server,
 		return nil, fmt.Errorf("mock: invalid settings: %w", err)
 	}
 	log.Printf(
-		"mock provider: decoded settings ip=%q fail=%t failMessageSet=%t requireToken=%t tokenEnvVar=%q",
+		"mock provider: decoded settings ip=%q fail=%t failMessageSet=%t requireToken=%t tokenEnvVar=%q userDataPath=%q",
 		settings.IP,
 		settings.Fail,
 		settings.FailMessage != "",
 		settings.RequireToken,
 		settings.TokenEnvVar,
+		settings.UserDataPath,
 	)
 
 	if settings.TokenEnvVar == "" {
@@ -135,6 +138,20 @@ func (p *Provider) CreateServer(request core.CreateServerRequest) (*core.Server,
 		return nil, fmt.Errorf("mock: user-data cannot be empty")
 	}
 	log.Printf("mock provider: received bootstrap script bytes=%d", len(request.UserData))
+
+	if settings.UserDataPath != "" {
+		if err := os.MkdirAll(filepath.Dir(settings.UserDataPath), 0o755); err != nil {
+			log.Printf("mock provider: failed to create bootstrap output directory for %q: %v", settings.UserDataPath, err)
+			return nil, fmt.Errorf("mock: create bootstrap output directory: %w", err)
+		}
+
+		if err := os.WriteFile(settings.UserDataPath, []byte(request.UserData), 0o600); err != nil {
+			log.Printf("mock provider: failed to write bootstrap script to %q: %v", settings.UserDataPath, err)
+			return nil, fmt.Errorf("mock: write bootstrap script: %w", err)
+		}
+
+		log.Printf("mock provider: wrote bootstrap script to %q", settings.UserDataPath)
+	}
 
 	log.Printf("mock provider: returning fake server ip=%q", settings.IP)
 

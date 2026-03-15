@@ -1,13 +1,14 @@
 server:
-  name: "valheim-server"
+  name: "mock-valheim-server"
 provider:
-  name: hetzner
+  name: mock
   settings:
-    location: nbg1
-    plan: cx23
+    ip: "203.0.113.25"
+    user_data_output_path: "./.openhost/debug/valheim-bootstrap.sh"
 game:
   name: valheim
   settings:
     world: "my_valheim_world"
     password: "very_secure_password"
     thunderstore_code: "019cf113-4729-c139-63ac-ea85dafcffd6"
+

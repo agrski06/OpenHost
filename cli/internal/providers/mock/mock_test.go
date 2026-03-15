@@ -1,6 +1,8 @@
 package mock
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/openhost/cli/internal/core"
@@ -29,6 +31,31 @@ func TestProviderCreateServer_DefaultSuccessWithoutToken(t *testing.T) {
 	assert.Equal(t, "mock", server.Provider)
 	assert.Equal(t, "mock-server", server.Name)
 	assert.Equal(t, "203.0.113.77", server.PublicIP)
+}
+
+func TestProviderCreateServer_WritesUserDataToFile(t *testing.T) {
+	provider := &Provider{}
+	outputPath := filepath.Join(t.TempDir(), "rendered", "bootstrap.sh")
+	userData := "#!/bin/bash\necho ok\n"
+
+	server, err := provider.CreateServer(core.CreateServerRequest{
+		Name:     "mock-server",
+		GameName: "valheim",
+		Ports: []core.PortRange{
+			{Protocol: "udp", From: 2456, To: 2458},
+		},
+		ProviderSettings: map[string]any{
+			"user_data_output_path": outputPath,
+		},
+		UserData: userData,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, server)
+
+	content, readErr := os.ReadFile(outputPath)
+	require.NoError(t, readErr)
+	assert.Equal(t, userData, string(content))
 }
 
 func TestProviderCreateServer_RequireTokenMissing(t *testing.T) {
