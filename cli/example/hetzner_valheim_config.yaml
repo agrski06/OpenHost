@@ -4,7 +4,7 @@ provider:
   name: hetzner
   settings:
     location: nbg1
-    plan: cx23
+    plan: cpx32
 game:
   name: valheim
   settings:

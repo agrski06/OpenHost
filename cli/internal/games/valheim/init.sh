@@ -4,6 +4,7 @@ set -euo pipefail
 OPENHOST_VALHEIM_HAS_MODS="{{ .HasMods }}"
 OPENHOST_VALHEIM_THUNDERSTORE_CODE="{{ .ThunderstoreCode }}"
 OPENHOST_VALHEIM_LOCAL_DEBUG="${OPENHOST_VALHEIM_LOCAL_DEBUG:-false}"
+OPENHOST_VALHEIM_ENABLE_SYSTEMD="${OPENHOST_VALHEIM_ENABLE_SYSTEMD:-true}"
 SERVER_ROOT="${OPENHOST_VALHEIM_SERVER_ROOT:-/home/valheim/server}"
 SAVE_ROOT="${OPENHOST_VALHEIM_SAVE_ROOT:-/home/valheim/saves}"
 MODPACK_ROOT="${OPENHOST_VALHEIM_MODPACK_ROOT:-/home/valheim/modpack}"
@@ -642,23 +643,47 @@ elif command -v ufw > /dev/null; then
     ufw reload
 fi
 
-# 10. Start in Screen
+# 10. Start via systemd (recommended)
 if [ "$OPENHOST_VALHEIM_LOCAL_DEBUG" = "true" ]; then
     echo "OpenHost: local debug mode skipping automatic server start" >&2
 else
-    LOG_DIR="${SERVER_ROOT}/logs"
-    SCREEN_LOG_FILE="${LOG_DIR}/screen-valheim-server.log"
-    SERVER_OUT_LOG_FILE="${LOG_DIR}/valheim.out.log"
-    SERVER_ERR_LOG_FILE="${LOG_DIR}/valheim.err.log"
+    # Optional: install a systemd service so the server starts on boot and restarts on crashes.
+    # Disable by setting: OPENHOST_VALHEIM_ENABLE_SYSTEMD=false
+    if [ "$OPENHOST_VALHEIM_ENABLE_SYSTEMD" = "true" ] && command -v systemctl >/dev/null 2>&1; then
+        SERVICE_PATH="/etc/systemd/system/openhost-valheim.service"
+        cat > "$SERVICE_PATH" <<SERVICE_EOF
+[Unit]
+Description=OpenHost Valheim Dedicated Server
+Wants=network-online.target
+After=network-online.target
 
-    mkdir -p "$LOG_DIR"
-    chown -R valheim:valheim "$LOG_DIR" || true
+[Service]
+Type=simple
+User=valheim
+Group=valheim
+WorkingDirectory=${SERVER_ROOT}
+ExecStart=/bin/bash -lc '${SERVER_ROOT}/start_valheim_custom.sh'
+Restart=always
+RestartSec=10
+KillSignal=SIGINT
+TimeoutStopSec=30
+LimitNOFILE=100000
+StandardOutput=journal
+StandardError=journal
 
-    echo "OpenHost: Valheim logs: screen='${SCREEN_LOG_FILE}' stdout='${SERVER_OUT_LOG_FILE}' stderr='${SERVER_ERR_LOG_FILE}'" >&2
+[Install]
+WantedBy=multi-user.target
+SERVICE_EOF
 
-    sudo -u valheim screen \
-        -L \
-        -Logfile "${SCREEN_LOG_FILE}" \
-        -dmS valheim-server \
-        bash -lc "cd '${SERVER_ROOT}' && exec ./start_valheim_custom.sh >>'${SERVER_OUT_LOG_FILE}' 2>>'${SERVER_ERR_LOG_FILE}'"
+        systemctl daemon-reload
+        systemctl enable openhost-valheim.service
+        systemctl restart openhost-valheim.service
+
+        echo "OpenHost: systemd enabled: openhost-valheim.service (logs: journalctl -u openhost-valheim.service -f)" >&2
+        exit 0
+    fi
+
+    echo "OpenHost: systemd is disabled or unavailable; not starting Valheim automatically." >&2
+    echo "OpenHost: to run once manually: sudo -u valheim bash -lc 'cd ${SERVER_ROOT} && ./start_valheim_custom.sh'" >&2
+    echo "OpenHost: to enable systemd management: OPENHOST_VALHEIM_ENABLE_SYSTEMD=true and ensure systemctl is available." >&2
 fi
