@@ -62,6 +62,9 @@ func TestBuildInitCommand_ThunderstoreModpack(t *testing.T) {
 	assert.Contains(t, command, `copying package bundle entry`)
 	assert.Contains(t, command, `ensure_server_root_launcher`)
 	assert.Contains(t, command, `promoted launcher`)
+	assert.Contains(t, command, `log_bepinex_runtime_status`)
+	assert.Contains(t, command, `BepInEx preloader found`)
+	assert.Contains(t, command, `doorstop runtime found`)
 	assert.Contains(t, command, `launcher 'start_server_bepinex.sh' is executable`)
 	assert.Contains(t, command, `launcher 'start_game_bepinex.sh'`)
 	assert.Contains(t, command, `log_bepinex_plugin_status`)
@@ -82,8 +85,11 @@ func TestBuildInitCommand_ThunderstoreModpack(t *testing.T) {
 	assert.Contains(t, command, `"format": "r2modman"`)
 	assert.Contains(t, command, `"source": "legacyprofile_export"`)
 	assert.Contains(t, command, `PACKAGE_LIST="${MODPACK_ROOT}/packages.txt"`)
-	assert.Contains(t, command, `LAUNCHER="./start_server_bepinex.sh"`)
-	assert.Contains(t, command, `"$LAUNCHER" \`)
+	assert.Contains(t, command, `export DOORSTOP_ENABLED=1`)
+	assert.Contains(t, command, `export DOORSTOP_TARGET_ASSEMBLY=./BepInEx/core/BepInEx.Preloader.dll`)
+	assert.Contains(t, command, `export LD_PRELOAD="libdoorstop_x64.so:$LD_PRELOAD"`)
+	assert.Contains(t, command, `launching Valheim server with injected BepInEx environment`)
+	assert.Contains(t, command, `./valheim_server.x86_64 \`)
 }
 
 func TestBuildInitCommand_UUIDThunderstoreCode(t *testing.T) {

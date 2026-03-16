@@ -181,8 +181,7 @@ func (s *Store) FindByName(name string) (*Record, error) {
 		if match != nil {
 			return nil, fmt.Errorf("multiple state records found with name %q", name)
 		}
-		recordCopy := record
-		match = &recordCopy
+		match = new(record)
 	}
 
 	return match, nil

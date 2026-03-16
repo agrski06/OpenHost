@@ -461,6 +461,20 @@ log_bepinex_plugin_status() {
     fi
 }
 
+log_bepinex_runtime_status() {
+    if [ -f "${SERVER_ROOT}/BepInEx/core/BepInEx.Preloader.dll" ]; then
+        echo "OpenHost: BepInEx preloader found at '${SERVER_ROOT}/BepInEx/core/BepInEx.Preloader.dll'" >&2
+    else
+        echo "OpenHost: BepInEx preloader missing from '${SERVER_ROOT}/BepInEx/core/BepInEx.Preloader.dll'" >&2
+    fi
+
+    if [ -d "${SERVER_ROOT}/doorstop_libs" ]; then
+        echo "OpenHost: doorstop runtime found at '${SERVER_ROOT}/doorstop_libs'" >&2
+    else
+        echo "OpenHost: doorstop runtime missing from '${SERVER_ROOT}/doorstop_libs'" >&2
+    fi
+}
+
 mkdir -p "$SERVER_ROOT" "$SAVE_ROOT" "$MODPACK_ROOT/unpack"
 
 if [ "$OPENHOST_VALHEIM_LOCAL_DEBUG" != "true" ]; then
@@ -564,10 +578,11 @@ if [ "$OPENHOST_VALHEIM_HAS_MODS" = "true" ]; then
     ensure_server_root_launcher "start_game_bepinex.sh" || true
     log_server_launcher_status "start_server_bepinex.sh"
     log_server_launcher_status "start_game_bepinex.sh"
+    log_bepinex_runtime_status
     log_bepinex_plugin_status
 
-    if [ ! -x "${SERVER_ROOT}/start_server_bepinex.sh" ] && [ ! -x "${SERVER_ROOT}/start_game_bepinex.sh" ]; then
-        echo "OpenHost: Thunderstore profile installed but no BepInEx launcher was found. Ensure the shared profile includes denikson-BepInExPack_Valheim." >&2
+    if [ ! -f "${SERVER_ROOT}/BepInEx/core/BepInEx.Preloader.dll" ] || [ ! -d "${SERVER_ROOT}/doorstop_libs" ]; then
+        echo "OpenHost: Thunderstore profile installed but the BepInEx runtime is incomplete. Ensure the shared profile includes denikson-BepInExPack_Valheim." >&2
         exit 1
     fi
 fi
@@ -583,17 +598,28 @@ export SteamAppId=892970
 echo "Starting server PRESS CTRL-C to exit"
 
 {{ if .HasMods }}
-LAUNCHER=""
-if [ -x "./start_server_bepinex.sh" ]; then
-    LAUNCHER="./start_server_bepinex.sh"
-elif [ -x "./start_game_bepinex.sh" ]; then
-    LAUNCHER="./start_game_bepinex.sh"
-else
-    echo "OpenHost: expected a BepInEx launcher after Thunderstore modpack installation" >&2
+if [ ! -f "./BepInEx/core/BepInEx.Preloader.dll" ]; then
+    echo "OpenHost: expected BepInEx preloader at ./BepInEx/core/BepInEx.Preloader.dll" >&2
     exit 1
 fi
 
-"$LAUNCHER" \
+if [ ! -d "./doorstop_libs" ]; then
+    echo "OpenHost: expected doorstop runtime directory at ./doorstop_libs" >&2
+    exit 1
+fi
+
+export DOORSTOP_ENABLED=1
+export DOORSTOP_TARGET_ASSEMBLY=./BepInEx/core/BepInEx.Preloader.dll
+export LD_LIBRARY_PATH="./doorstop_libs:$LD_LIBRARY_PATH"
+if [ -n "${LD_PRELOAD:-}" ]; then
+    export LD_PRELOAD="libdoorstop_x64.so:$LD_PRELOAD"
+else
+    export LD_PRELOAD="libdoorstop_x64.so"
+fi
+
+echo "OpenHost: launching Valheim server with injected BepInEx environment" >&2
+
+./valheim_server.x86_64 \
 {{ else }}
 ./valheim_server.x86_64 \
 {{ end }}
