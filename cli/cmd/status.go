@@ -25,7 +25,7 @@ func (c *CLI) runStatus(args []string) error {
 func (c *CLI) printStatus(report app.ServerStatus) error {
 	_, err := fmt.Fprintf(
 		c.stdout,
-		"Name: %s\nProvider: %s\nProvider ID: %s\n\nLocal:\n  State: %s\n  Detail: %s\n  Config: %s\n  Created: %s\n\nInfrastructure:\n  State: %s\n  Detail: %s\n  Name: %s\n  Public IP: %s\n\nGame:\n  State: %s\n  Detail: %s\n",
+		"Name: %s\nProvider: %s\nProvider ID: %s\n\nLocal:\n  State: %s\n  Detail: %s\n  Config: %s\n  Created: %s\n  Deleted: %t\n  Last Snapshot ID: %s\n  Last Snapshot Description: %s\n  Last Snapshot Created: %s\n\nInfrastructure:\n  State: %s\n  Detail: %s\n  Name: %s\n  Public IP: %s\n\nGame:\n  State: %s\n  Detail: %s\n",
 		report.Record.Name,
 		report.Record.Provider,
 		report.Record.ID,
@@ -33,6 +33,10 @@ func (c *CLI) printStatus(report app.ServerStatus) error {
 		report.Local.Detail,
 		report.Record.ConfigPath,
 		report.Record.CreatedAt,
+		report.Record.Deleted,
+		report.Record.LastSnapshotID,
+		report.Record.LastSnapshotDescription,
+		report.Record.LastSnapshotCreatedAt,
 		report.Infrastructure.State,
 		report.Infrastructure.Detail,
 		report.Infrastructure.Name,
