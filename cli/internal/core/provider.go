@@ -14,6 +14,10 @@ type DeleteServerRequest struct {
 	Ports                     []PortRange
 	AssociatedResources       []ResourceRef
 	RemoveAssociatedResources bool
+
+	// Optional: snapshot image IDs associated with this server that should be
+	// removed when RemoveAssociatedResources is true.
+	SnapshotIDs []string
 }
 
 // StopServerAndSnapshotRequest describes a provider-specific workflow where

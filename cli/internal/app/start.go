@@ -18,7 +18,7 @@ type StartOptions struct {
 	Recreate bool
 }
 
-// StartKnownServerFromLastSnapshot creates a new server from the last snapshot
+// StartKnownServer creates a new server from the last snapshot
 // stored in local state (created by `openhost stop`) and updates local state to
 // track the new provider-native server ID.
 func StartKnownServer(selector string, opts StartOptions) (*StartResult, error) {

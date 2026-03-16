@@ -190,6 +190,25 @@ func (p *Provider) DeleteServer(request core.DeleteServerRequest) error {
 		return err
 	}
 
+	if request.RemoveAssociatedResources && len(request.SnapshotIDs) > 0 {
+		for _, snapshotID := range request.SnapshotIDs {
+			imageID, err := strconv.ParseInt(snapshotID, 10, 64)
+			if err != nil {
+				return fmt.Errorf("failed to parse snapshot image id %q for server %q: %w", snapshotID, request.ID, err)
+			}
+			image, _, err := client.Image.GetByID(ctx, imageID)
+			if err != nil {
+				return fmt.Errorf("failed to look up snapshot image %q for server %q: %w", snapshotID, request.ID, err)
+			}
+			if image == nil {
+				continue
+			}
+			if _, err := client.Image.Delete(ctx, image); err != nil {
+				return fmt.Errorf("failed to delete snapshot image %q for server %q: %w", snapshotID, request.ID, err)
+			}
+		}
+	}
+
 	return nil
 }
 

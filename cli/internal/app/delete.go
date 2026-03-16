@@ -37,6 +37,10 @@ func DeleteKnownServerWithOptions(selector string, removeAssociatedResources boo
 		GameName:                  record.Game,
 		AssociatedResources:       record.AssociatedResources,
 		RemoveAssociatedResources: removeAssociatedResources,
+		SnapshotIDs:               nil,
+	}
+	if removeAssociatedResources && record.LastSnapshotID != "" {
+		deleteRequest.SnapshotIDs = []string{record.LastSnapshotID}
 	}
 	if removeAssociatedResources {
 		deleteRequest.AssociatedResources, result.Warnings, err = filterSharedAssociatedResources(store, *record)
