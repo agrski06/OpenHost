@@ -23,12 +23,15 @@ func TestStoreSaveRecordCreatesAndLoadsSnapshot(t *testing.T) {
 	store := NewStore(filepath.Join(t.TempDir(), "instances.json"))
 
 	err := store.SaveRecord(Record{
-		Provider:   "mock",
-		ID:         "mock-server-1",
-		Name:       "server-1",
-		PublicIP:   "203.0.113.10",
-		Game:       "minecraft",
-		ConfigPath: "example/mock_minecraft_config.yaml",
+		Provider:                "mock",
+		ID:                      "mock-server-1",
+		Name:                    "server-1",
+		PublicIP:                "203.0.113.10",
+		Game:                    "minecraft",
+		ConfigPath:              "example/mock_minecraft_config.yaml",
+		LastSnapshotID:          "999",
+		LastSnapshotDescription: "my snapshot",
+		LastSnapshotCreatedAt:   "2026-03-16T12:00:00Z",
 		AssociatedResources: []core.ResourceRef{
 			{Type: "firewall", ID: "fw-1", Name: "fw-test"},
 		},
@@ -44,6 +47,9 @@ func TestStoreSaveRecordCreatesAndLoadsSnapshot(t *testing.T) {
 	assert.Equal(t, "server-1", snapshot.Servers[0].Name)
 	require.Len(t, snapshot.Servers[0].AssociatedResources, 1)
 	assert.Equal(t, "fw-1", snapshot.Servers[0].AssociatedResources[0].ID)
+	assert.Equal(t, "999", snapshot.Servers[0].LastSnapshotID)
+	assert.Equal(t, "my snapshot", snapshot.Servers[0].LastSnapshotDescription)
+	assert.Equal(t, "2026-03-16T12:00:00Z", snapshot.Servers[0].LastSnapshotCreatedAt)
 }
 
 func TestStoreSaveRecordUpsertsByProviderAndID(t *testing.T) {

@@ -71,6 +71,84 @@ func (p *Provider) GetServerStatus(id string) (*core.InfrastructureStatus, error
 	}, nil
 }
 
+func (p *Provider) StopServer(request core.StopServerRequest) error {
+	if request.ID == "" {
+		return fmt.Errorf("hetzner server id cannot be empty")
+	}
+
+	serverID, err := strconv.ParseInt(request.ID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid hetzner server id %q: %w", request.ID, err)
+	}
+
+	client, err := newClientFromEnv()
+	if err != nil {
+		return err
+	}
+	ctx := context.Background()
+
+	server, _, err := client.Server.GetByID(ctx, serverID)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve hetzner server %q: %w", request.ID, err)
+	}
+	if server == nil {
+		return nil
+	}
+	if server.Status == hcloud.ServerStatusOff {
+		return nil
+	}
+
+	action, _, err := client.Server.Shutdown(ctx, server)
+	if err != nil {
+		return fmt.Errorf("shutdown hetzner server %q: %w", request.ID, err)
+	}
+	if action != nil {
+		if err := client.Action.WaitFor(ctx, action); err != nil {
+			return fmt.Errorf("wait for shutdown of hetzner server %q: %w", request.ID, err)
+		}
+	}
+	return nil
+}
+
+func (p *Provider) StartServer(request core.StartServerRequest) error {
+	if request.ID == "" {
+		return fmt.Errorf("hetzner server id cannot be empty")
+	}
+
+	serverID, err := strconv.ParseInt(request.ID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid hetzner server id %q: %w", request.ID, err)
+	}
+
+	client, err := newClientFromEnv()
+	if err != nil {
+		return err
+	}
+	ctx := context.Background()
+
+	server, _, err := client.Server.GetByID(ctx, serverID)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve hetzner server %q: %w", request.ID, err)
+	}
+	if server == nil {
+		return fmt.Errorf("hetzner server %q not found", request.ID)
+	}
+	if server.Status == hcloud.ServerStatusRunning {
+		return nil
+	}
+
+	action, _, err := client.Server.Poweron(ctx, server)
+	if err != nil {
+		return fmt.Errorf("power on hetzner server %q: %w", request.ID, err)
+	}
+	if action != nil {
+		if err := client.Action.WaitFor(ctx, action); err != nil {
+			return fmt.Errorf("wait for power on of hetzner server %q: %w", request.ID, err)
+		}
+	}
+	return nil
+}
+
 func (p *Provider) DeleteServer(request core.DeleteServerRequest) error {
 	if request.ID == "" {
 		return fmt.Errorf("hetzner server id cannot be empty")
@@ -219,6 +297,201 @@ func (p *Provider) CreateServer(request core.CreateServerRequest) (*core.Server,
 				ID:   fmt.Sprintf("%d", fw.ID),
 				Name: fw.Name,
 			},
+		},
+	}, nil
+}
+
+func (p *Provider) StopServerAndSnapshot(request core.StopServerAndSnapshotRequest) (*core.SnapshotResult, error) {
+	if request.ID == "" {
+		return nil, fmt.Errorf("hetzner server id cannot be empty")
+	}
+
+	serverID, err := strconv.ParseInt(request.ID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid hetzner server id %q: %w", request.ID, err)
+	}
+
+	client, err := newClientFromEnv()
+	if err != nil {
+		return nil, err
+	}
+	ctx := context.Background()
+
+	server, _, err := client.Server.GetByID(ctx, serverID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve hetzner server %q: %w", request.ID, err)
+	}
+	if server == nil {
+		return nil, fmt.Errorf("hetzner server %q not found", request.ID)
+	}
+
+	// 1) Attempt a graceful shutdown for filesystem consistency.
+	// (If the server is already off, this will typically fail; in that case we proceed.)
+	if server.Status != hcloud.ServerStatusOff {
+		action, _, err := client.Server.Shutdown(ctx, server)
+		if err == nil && action != nil {
+			if err := client.Action.WaitFor(ctx, action); err != nil {
+				return nil, fmt.Errorf("wait for shutdown of hetzner server %q: %w", request.ID, err)
+			}
+		}
+	}
+
+	// Wait until the server is actually powered off.
+	for {
+		refreshed, _, err := client.Server.GetByID(ctx, serverID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to refresh hetzner server %q status: %w", request.ID, err)
+		}
+		if refreshed == nil {
+			return nil, fmt.Errorf("hetzner server %q not found while waiting for shutdown", request.ID)
+		}
+		if refreshed.Status == hcloud.ServerStatusOff {
+			break
+		}
+		time.Sleep(2 * time.Second)
+	}
+
+	// 2) Create the snapshot image.
+	description := request.SnapshotDescription
+	if description == "" {
+		// Keep it human-friendly but deterministic.
+		base := server.Name
+		if request.GameName != "" {
+			base = fmt.Sprintf("%s-%s", server.Name, request.GameName)
+		}
+		description = fmt.Sprintf("openhost snapshot: %s %s", base, time.Now().UTC().Format(time.RFC3339))
+	}
+
+	res, _, err := client.Server.CreateImage(ctx, server, &hcloud.ServerCreateImageOpts{
+		Type:        hcloud.ImageTypeSnapshot,
+		Description: hcloud.Ptr(description),
+		Labels: map[string]string{
+			"managed-by": "openhost",
+			"server-id":  fmt.Sprintf("%d", server.ID),
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create snapshot for hetzner server %q: %w", request.ID, err)
+	}
+	if res.Action != nil {
+		if err := client.Action.WaitFor(ctx, res.Action); err != nil {
+			return nil, fmt.Errorf("wait for snapshot action for hetzner server %q: %w", request.ID, err)
+		}
+	}
+	if res.Image == nil {
+		return nil, fmt.Errorf("hetzner snapshot action completed but no image was returned")
+	}
+
+	return &core.SnapshotResult{
+		SnapshotID:          fmt.Sprintf("%d", res.Image.ID),
+		SnapshotDescription: res.Image.Description,
+	}, nil
+}
+
+func (p *Provider) StartServerFromSnapshot(request core.StartServerFromSnapshotRequest) (*core.Server, error) {
+	if request.SnapshotID == "" {
+		return nil, fmt.Errorf("hetzner snapshot id cannot be empty")
+	}
+	if request.Name == "" {
+		return nil, fmt.Errorf("server name cannot be empty")
+	}
+	if request.GameName == "" {
+		return nil, fmt.Errorf("game name cannot be empty")
+	}
+	if len(request.Ports) == 0 {
+		return nil, fmt.Errorf("hetzner provider requires at least one exposed port")
+	}
+
+	var settings Settings
+	if err := mapstructure.Decode(request.ProviderSettings, &settings); err != nil {
+		return nil, fmt.Errorf("invalid hetzner settings: %w", err)
+	}
+
+	snapshotID, err := strconv.ParseInt(request.SnapshotID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid hetzner snapshot id %q: %w", request.SnapshotID, err)
+	}
+
+	client, err := newClientFromEnv()
+	if err != nil {
+		return nil, err
+	}
+	ctx := context.Background()
+
+	_, anyIPv4, _ := net.ParseCIDR("0.0.0.0/0")
+
+	buildRule := func(proto hcloud.FirewallRuleProtocol, startPort int, endPort int) hcloud.FirewallRule {
+		portStr := fmt.Sprintf("%d", startPort)
+		if startPort != endPort {
+			portStr = fmt.Sprintf("%d-%d", startPort, endPort)
+		}
+		return hcloud.FirewallRule{
+			Direction: hcloud.FirewallRuleDirectionIn,
+			Protocol:  proto,
+			Port:      hcloud.Ptr(portStr),
+			SourceIPs: []net.IPNet{*anyIPv4},
+		}
+	}
+
+	rules := []hcloud.FirewallRule{
+		buildRule(hcloud.FirewallRuleProtocolTCP, 22, 22),
+	}
+	for _, pr := range request.Ports {
+		proto := hcloud.FirewallRuleProtocolTCP
+		if pr.Protocol == "udp" {
+			proto = hcloud.FirewallRuleProtocolUDP
+		}
+		rules = append(rules, buildRule(proto, pr.From, pr.To))
+	}
+
+	primaryPort := request.Ports[0].From
+	fwName := fmt.Sprintf("fw-%s-%d", request.GameName, primaryPort)
+	fw, _, err := client.Firewall.GetByName(ctx, fwName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check for existing firewall: %w", err)
+	}
+	if fw == nil {
+		res, _, err := client.Firewall.Create(ctx, hcloud.FirewallCreateOpts{
+			Name:  fwName,
+			Rules: rules,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create firewall: %w", err)
+		}
+		fw = res.Firewall
+	}
+
+	result, _, err := client.Server.Create(ctx, hcloud.ServerCreateOpts{
+		Name:       request.Name,
+		Image:      &hcloud.Image{ID: snapshotID},
+		ServerType: &hcloud.ServerType{Name: settings.Plan},
+		Location:   &hcloud.Location{Name: settings.Location},
+		Firewalls: []*hcloud.ServerCreateFirewall{
+			{Firewall: *fw},
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create server from snapshot: %w", err)
+	}
+	_ = client.Action.WaitFor(ctx, result.Action)
+
+	server, _, err := client.Server.GetByID(ctx, result.Server.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve server details: %w", err)
+	}
+
+	publicIP := ""
+	if server.PublicNet.IPv4.IP != nil {
+		publicIP = server.PublicNet.IPv4.IP.String()
+	}
+
+	return &core.Server{
+		ID:       fmt.Sprintf("%d", server.ID),
+		Provider: p.Name(),
+		Name:     server.Name,
+		PublicIP: publicIP,
+		AssociatedResources: []core.ResourceRef{
+			{Type: "firewall", ID: fmt.Sprintf("%d", fw.ID), Name: fw.Name},
 		},
 	}, nil
 }

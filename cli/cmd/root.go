@@ -30,6 +30,10 @@ func (c *CLI) Execute(args []string) error {
 		return c.runList(args[1:])
 	case "status":
 		return c.runStatus(args[1:])
+	case "start":
+		return c.runStart(args[1:])
+	case "stop":
+		return c.runStop(args[1:])
 	case "down":
 		return c.runDown(args[1:])
 	case "help", "-h", "--help":
@@ -52,12 +56,16 @@ func (c *CLI) printUsage() error {
 		"  openhost up [config-file]\n" +
 		"  openhost list\n" +
 		"  openhost status [server-name|provider:id]\n" +
+		"  openhost start [--recreate] <server-name|provider:id>\n" +
+		"  openhost stop [--snapshot-description=<text>] [--delete|--no-snapshot] <server-name|provider:id>\n" +
 		"  openhost down [--remove-associated-resources] <server-name|provider:id>\n" +
 		"  openhost help\n\n" +
 		"Notes:\n" +
 		"  - If no arguments are provided, the CLI runs `up` with the default config.\n" +
 		"  - For compatibility, a bare config path is treated like `up <config-file>`.\n" +
-		"  - `down` prompts before removing associated resources unless the flag is provided."
+		"  - `down` prompts before removing associated resources unless the flag is provided.\n" +
+		"  - `stop` defaults to stop+snapshot; use --no-snapshot to only power off; use --delete to delete the VM after snapshot.\n" +
+		"  - `start` powers on an existing stopped server; if it was deleted (or --recreate), it creates a new server from the most recent snapshot."
 
 	_, err := fmt.Fprintln(c.stdout, usage)
 	return err

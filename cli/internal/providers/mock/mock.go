@@ -59,6 +59,16 @@ func (p *Provider) GetServerStatus(id string) (*core.InfrastructureStatus, error
 	return status, nil
 }
 
+func (p *Provider) StopServer(request core.StopServerRequest) error {
+	log.Printf("mock provider: starting StopServer id=%q", request.ID)
+	return fmt.Errorf("mock: stop not implemented")
+}
+
+func (p *Provider) StartServer(request core.StartServerRequest) error {
+	log.Printf("mock provider: starting StartServer id=%q", request.ID)
+	return fmt.Errorf("mock: start not implemented")
+}
+
 func (p *Provider) DeleteServer(request core.DeleteServerRequest) error {
 	log.Printf("mock provider: starting DeleteServer id=%q removeAssociatedResources=%t", request.ID, request.RemoveAssociatedResources)
 	if request.ID == "" {
@@ -68,6 +78,16 @@ func (p *Provider) DeleteServer(request core.DeleteServerRequest) error {
 
 	log.Printf("mock provider: deleted fake server id=%q", request.ID)
 	return nil
+}
+
+func (p *Provider) StopServerAndSnapshot(request core.StopServerAndSnapshotRequest) (*core.SnapshotResult, error) {
+	log.Printf("mock provider: starting StopServerAndSnapshot id=%q", request.ID)
+	return nil, fmt.Errorf("mock: stop+snapshot not implemented")
+}
+
+func (p *Provider) StartServerFromSnapshot(request core.StartServerFromSnapshotRequest) (*core.Server, error) {
+	log.Printf("mock provider: starting StartServerFromSnapshot snapshotID=%q", request.SnapshotID)
+	return nil, fmt.Errorf("mock: start from snapshot not implemented")
 }
 
 func (p *Provider) CreateServer(request core.CreateServerRequest) (*core.Server, error) {

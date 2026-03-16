@@ -19,7 +19,15 @@ type Record struct {
 	Game                string             `json:"game,omitempty"`
 	ConfigPath          string             `json:"config_path,omitempty"`
 	AssociatedResources []core.ResourceRef `json:"associated_resources,omitempty"`
-	CreatedAt           string             `json:"created_at"`
+
+	// Snapshot metadata
+	LastSnapshotID          string `json:"last_snapshot_id,omitempty"`
+	LastSnapshotDescription string `json:"last_snapshot_description,omitempty"`
+	LastSnapshotCreatedAt   string `json:"last_snapshot_created_at,omitempty"`
+
+	// True when the server was intentionally deleted (e.g. `openhost stop --delete`).
+	Deleted   bool   `json:"deleted,omitempty"`
+	CreatedAt string `json:"created_at"`
 }
 
 type Snapshot struct {
