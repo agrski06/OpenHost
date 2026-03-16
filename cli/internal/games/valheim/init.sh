@@ -591,8 +591,6 @@ fi
 cat << 'EOF' > "$SERVER_ROOT/start_valheim_custom.sh"
 #!/bin/bash
 SAVE_ROOT="/home/valheim/saves"
-export templdpath=$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=./linux64:$LD_LIBRARY_PATH
 export SteamAppId=892970
 
 echo "Starting server PRESS CTRL-C to exit"
@@ -611,26 +609,23 @@ fi
 export DOORSTOP_ENABLED=1
 export DOORSTOP_TARGET_ASSEMBLY=./BepInEx/core/BepInEx.Preloader.dll
 export LD_LIBRARY_PATH="./doorstop_libs:$LD_LIBRARY_PATH"
-if [ -n "${LD_PRELOAD:-}" ]; then
-    export LD_PRELOAD="libdoorstop_x64.so:$LD_PRELOAD"
-else
-    export LD_PRELOAD="libdoorstop_x64.so"
-fi
+export LD_PRELOAD="libdoorstop_x64.so:$LD_PRELOAD"
 
 echo "OpenHost: launching Valheim server with injected BepInEx environment" >&2
 
-./valheim_server.x86_64 \
-{{ else }}
-./valheim_server.x86_64 \
 {{ end }}
+
+export LD_LIBRARY_PATH="./linux64:$LD_LIBRARY_PATH"
+
+exec ./valheim_server.x86_64 \
+    -batchmode \
+    -nographics \
     -name "{{ .ServerName }}" \
     -port {{ .Port }} \
     -world "{{ .WorldName }}" \
     -password "{{ .Password }}" \
     -savedir "${SAVE_ROOT}" \
     -public 1 \
-
-export LD_LIBRARY_PATH=$templdpath
 EOF
 
 # 8. Finalize Permissions
@@ -651,5 +646,19 @@ fi
 if [ "$OPENHOST_VALHEIM_LOCAL_DEBUG" = "true" ]; then
     echo "OpenHost: local debug mode skipping automatic server start" >&2
 else
-    sudo -u valheim screen -dmS valheim-server bash -c "cd ${SERVER_ROOT} && ./start_valheim_custom.sh"
+    LOG_DIR="${SERVER_ROOT}/logs"
+    SCREEN_LOG_FILE="${LOG_DIR}/screen-valheim-server.log"
+    SERVER_OUT_LOG_FILE="${LOG_DIR}/valheim.out.log"
+    SERVER_ERR_LOG_FILE="${LOG_DIR}/valheim.err.log"
+
+    mkdir -p "$LOG_DIR"
+    chown -R valheim:valheim "$LOG_DIR" || true
+
+    echo "OpenHost: Valheim logs: screen='${SCREEN_LOG_FILE}' stdout='${SERVER_OUT_LOG_FILE}' stderr='${SERVER_ERR_LOG_FILE}'" >&2
+
+    sudo -u valheim screen \
+        -L \
+        -Logfile "${SCREEN_LOG_FILE}" \
+        -dmS valheim-server \
+        bash -lc "cd '${SERVER_ROOT}' && exec ./start_valheim_custom.sh >>'${SERVER_OUT_LOG_FILE}' 2>>'${SERVER_ERR_LOG_FILE}'"
 fi
