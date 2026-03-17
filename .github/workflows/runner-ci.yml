@@ -1,0 +1,62 @@
+name: Runner CI
+
+on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - 'runner/**'
+      - 'pkg/runnerconfig/**'
+      - 'cli/internal/games/valheim/**'
+      - 'go.work'
+      - '.github/workflows/runner-ci.yml'
+      - '.github/workflows/release-runner.yml'
+  pull_request:
+    paths:
+      - 'runner/**'
+      - 'pkg/runnerconfig/**'
+      - 'cli/internal/games/valheim/**'
+      - 'go.work'
+      - '.github/workflows/runner-ci.yml'
+      - '.github/workflows/release-runner.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: runner/go.mod
+      - name: Test runner module
+        run: |
+          cd runner
+          go test ./...
+      - name: Test Valheim CLI integration
+        run: |
+          cd cli
+          go test ./internal/games/valheim/...
+
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+    strategy:
+      matrix:
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: runner/go.mod
+      - name: Build runner binary
+        run: |
+          cd runner
+          CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} \
+            go build -ldflags="-s -w -X main.version=branch-${GITHUB_SHA::7}" -o ../openhost-runner-linux-${{ matrix.goarch }} .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runner-linux-${{ matrix.goarch }}
+          path: openhost-runner-linux-${{ matrix.goarch }}
+          if-no-files-found: error
+
