@@ -44,13 +44,19 @@ func silentSystemManager(executor system.Executor) *system.Manager {
 	return system.NewManager(executor, slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
 
-func TestWriteStartupScriptPrefersDetectedLauncher(t *testing.T) {
+func TestWriteStartupScriptInjectsBepInExWhenRuntimeDetected(t *testing.T) {
 	t.Parallel()
 
 	serverRoot := t.TempDir()
 	saveRoot := filepath.Join(t.TempDir(), "saves")
 	if err := os.MkdirAll(filepath.Join(serverRoot, "BepInEx", "core"), 0o755); err != nil {
 		t.Fatalf("create BepInEx dir: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(serverRoot, "doorstop_libs"), 0o755); err != nil {
+		t.Fatalf("create doorstop dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(serverRoot, "BepInEx", "core", "BepInEx.Preloader.dll"), []byte("dll"), 0o644); err != nil {
+		t.Fatalf("write preloader: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(serverRoot, "start_server_bepinex.sh"), []byte("#!/bin/bash\n"), 0o755); err != nil {
 		t.Fatalf("write launcher: %v", err)
@@ -70,8 +76,8 @@ func TestWriteStartupScriptPrefersDetectedLauncher(t *testing.T) {
 		t.Fatalf("read startup script: %v", err)
 	}
 	text := string(content)
-	if !strings.Contains(text, "./start_server_bepinex.sh") {
-		t.Fatalf("expected script to use BepInEx launcher, got: %s", text)
+	if !strings.Contains(text, "./valheim_server.x86_64") {
+		t.Fatalf("expected script to use legacy direct server launcher, got: %s", text)
 	}
 	if !strings.Contains(text, "export SteamAppId=892970") {
 		t.Fatalf("expected script to export SteamAppId, got: %s", text)
@@ -93,7 +99,46 @@ func TestWriteStartupScriptPrefersDetectedLauncher(t *testing.T) {
 	}
 }
 
-func TestWriteStartupScriptFallsBackToVanillaLauncher(t *testing.T) {
+func TestWriteStartupScriptSkipsInjectionWhenRuntimeMissing(t *testing.T) {
+	t.Parallel()
+
+	serverRoot := t.TempDir()
+	saveRoot := filepath.Join(t.TempDir(), "saves")
+	scriptPath, err := writeStartupScript(runnerconfig.ServerPaths{
+		ServerRoot:  serverRoot,
+		SaveRoot:    saveRoot,
+		ModpackRoot: filepath.Join(t.TempDir(), "modpack"),
+	}, Settings{World: "Dedicated", Password: "secret"}, true)
+	if err != nil {
+		t.Fatalf("writeStartupScript returned error: %v", err)
+	}
+
+	content, err := os.ReadFile(scriptPath)
+	if err != nil {
+		t.Fatalf("read startup script: %v", err)
+	}
+	text := string(content)
+	if !strings.Contains(text, "./valheim_server.x86_64") {
+		t.Fatalf("expected fallback vanilla launcher, got: %s", text)
+	}
+	if strings.Contains(text, "export DOORSTOP_ENABLED=1") {
+		t.Fatalf("expected incomplete runtime script to omit doorstop exports, got: %s", text)
+	}
+	if strings.Contains(text, "expected BepInEx preloader") {
+		t.Fatalf("expected incomplete runtime script to skip hard-fail checks, got: %s", text)
+	}
+	if !strings.Contains(text, "mods are configured but the BepInEx runtime is incomplete") {
+		t.Fatalf("expected incomplete runtime warning, got: %s", text)
+	}
+	if !strings.Contains(text, "export SteamAppId=892970") {
+		t.Fatalf("expected script to export SteamAppId, got: %s", text)
+	}
+	if !strings.Contains(text, `SAVE_ROOT=`+"\""+saveRoot+"\"") {
+		t.Fatalf("expected script to retain configured save root, got: %s", text)
+	}
+}
+
+func TestWriteStartupScriptFallsBackToVanillaLauncherWithoutMods(t *testing.T) {
 	t.Parallel()
 
 	serverRoot := t.TempDir()
@@ -115,14 +160,8 @@ func TestWriteStartupScriptFallsBackToVanillaLauncher(t *testing.T) {
 	if !strings.Contains(text, "./valheim_server.x86_64") {
 		t.Fatalf("expected fallback vanilla launcher, got: %s", text)
 	}
-	if strings.Contains(text, "export DOORSTOP_ENABLED=1") {
-		t.Fatalf("expected vanilla script to omit doorstop exports, got: %s", text)
-	}
-	if !strings.Contains(text, "export SteamAppId=892970") {
-		t.Fatalf("expected vanilla script to export SteamAppId, got: %s", text)
-	}
-	if !strings.Contains(text, `SAVE_ROOT=`+"\""+saveRoot+"\"") {
-		t.Fatalf("expected script to retain configured save root, got: %s", text)
+	if strings.Contains(text, "mods are configured but the BepInEx runtime is incomplete") {
+		t.Fatalf("expected no runtime warning when mods are not configured, got: %s", text)
 	}
 }
 

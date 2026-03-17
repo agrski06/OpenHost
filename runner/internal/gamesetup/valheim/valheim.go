@@ -254,10 +254,8 @@ func installMods(ctx context.Context, cfg runnerconfig.RunnerConfig, env *core.S
 
 func writeStartupScript(paths runnerconfig.ServerPaths, settings Settings, hasMods bool) (string, error) {
 	status := bepinex.ValidateServerRoot(paths.ServerRoot)
-	launcherName := filepath.Base(status.Launcher)
-	if launcherName == "." || launcherName == string(filepath.Separator) || launcherName == "" {
-		launcherName = "valheim_server.x86_64"
-	}
+	launcherName := "valheim_server.x86_64"
+	runtimeReady := status.HasPreloader && status.HasDoorstopLib
 
 	scriptPath := filepath.Join(paths.ServerRoot, startupScript)
 	var content strings.Builder
@@ -265,7 +263,10 @@ func writeStartupScript(paths runnerconfig.ServerPaths, settings Settings, hasMo
 		paths.ServerRoot,
 		paths.SaveRoot,
 	)
-	if hasMods {
+	if hasMods && !runtimeReady {
+		content.WriteString("echo \"OpenHost: mods are configured but the BepInEx runtime is incomplete; starting without injected mod runtime\" >&2\n\n")
+	}
+	if runtimeReady {
 		content.WriteString(`if [ ! -f "./BepInEx/core/BepInEx.Preloader.dll" ]; then
 	echo "OpenHost: expected BepInEx preloader at ./BepInEx/core/BepInEx.Preloader.dll" >&2
 	exit 1
