@@ -74,13 +74,14 @@ func (g *GameSetup) Setup(ctx context.Context, cfg runnerconfig.RunnerConfig, en
 		}
 	}
 
-	if cfg.Game.Mods != nil && len(cfg.Game.Mods.Sources) > 0 {
+	hasMods := cfg.Game.Mods != nil && len(cfg.Game.Mods.Sources) > 0
+	if hasMods {
 		if err := installMods(ctx, cfg, env); err != nil {
 			return err
 		}
 	}
 
-	startupPath, err := writeStartupScript(cfg.Server, settings)
+	startupPath, err := writeStartupScript(cfg.Server, settings, hasMods)
 	if err != nil {
 		return err
 	}
@@ -251,7 +252,7 @@ func installMods(ctx context.Context, cfg runnerconfig.RunnerConfig, env *core.S
 	return nil
 }
 
-func writeStartupScript(paths runnerconfig.ServerPaths, settings Settings) (string, error) {
+func writeStartupScript(paths runnerconfig.ServerPaths, settings Settings, hasMods bool) (string, error) {
 	status := bepinex.ValidateServerRoot(paths.ServerRoot)
 	launcherName := filepath.Base(status.Launcher)
 	if launcherName == "." || launcherName == string(filepath.Separator) || launcherName == "" {
@@ -259,16 +260,54 @@ func writeStartupScript(paths runnerconfig.ServerPaths, settings Settings) (stri
 	}
 
 	scriptPath := filepath.Join(paths.ServerRoot, startupScript)
-	content := fmt.Sprintf("#!/bin/bash\nset -euo pipefail\ncd %q\nexec ./%s -name %q -port %d -world %q -password %q -savedir %q -public 1\n",
+	var content strings.Builder
+	_, _ = fmt.Fprintf(&content, "#!/bin/bash\nset -euo pipefail\n\ncd %q\nSAVE_ROOT=%q\nexport SteamAppId=892970\n\necho \"Starting server PRESS CTRL-C to exit\"\n\n",
 		paths.ServerRoot,
-		launcherName,
+		paths.SaveRoot,
+	)
+	if hasMods {
+		content.WriteString(`if [ ! -f "./BepInEx/core/BepInEx.Preloader.dll" ]; then
+	echo "OpenHost: expected BepInEx preloader at ./BepInEx/core/BepInEx.Preloader.dll" >&2
+	exit 1
+fi
+
+if [ ! -d "./doorstop_libs" ]; then
+	echo "OpenHost: expected doorstop runtime directory at ./doorstop_libs" >&2
+	exit 1
+fi
+
+export DOORSTOP_ENABLED=1
+export DOORSTOP_TARGET_ASSEMBLY=./BepInEx/core/BepInEx.Preloader.dll
+if [ -n "${LD_LIBRARY_PATH:-}" ]; then
+	export LD_LIBRARY_PATH="./doorstop_libs:${LD_LIBRARY_PATH}"
+else
+	export LD_LIBRARY_PATH="./doorstop_libs"
+fi
+if [ -n "${LD_PRELOAD:-}" ]; then
+	export LD_PRELOAD="libdoorstop_x64.so:${LD_PRELOAD}"
+else
+	export LD_PRELOAD="libdoorstop_x64.so"
+fi
+
+echo "OpenHost: launching Valheim server with injected BepInEx environment" >&2
+
+`)
+	}
+	content.WriteString(`if [ -n "${LD_LIBRARY_PATH:-}" ]; then
+	export LD_LIBRARY_PATH="./linux64:${LD_LIBRARY_PATH}"
+else
+	export LD_LIBRARY_PATH="./linux64"
+fi
+
+`)
+	_, _ = fmt.Fprintf(&content, "exec %q \\\n	-batchmode \\\n	-nographics \\\n	-name %q \\\n	-port %d \\\n	-world %q \\\n	-password %q \\\n	-savedir \"${SAVE_ROOT}\" \\\n	-public 1\n",
+		"./"+launcherName,
 		defaultName,
 		defaultUDPFrom,
 		settings.World,
 		settings.Password,
-		paths.SaveRoot,
 	)
-	if err := os.WriteFile(scriptPath, []byte(content), 0o755); err != nil {
+	if err := os.WriteFile(scriptPath, []byte(content.String()), 0o755); err != nil {
 		return "", fmt.Errorf("write startup script %q: %w", scriptPath, err)
 	}
 	return scriptPath, nil

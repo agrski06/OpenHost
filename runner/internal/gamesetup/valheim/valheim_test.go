@@ -60,7 +60,7 @@ func TestWriteStartupScriptPrefersDetectedLauncher(t *testing.T) {
 		ServerRoot:  serverRoot,
 		SaveRoot:    saveRoot,
 		ModpackRoot: filepath.Join(t.TempDir(), "modpack"),
-	}, Settings{World: "DedicatedWorld", Password: "secret"})
+	}, Settings{World: "DedicatedWorld", Password: "secret"}, true)
 	if err != nil {
 		t.Fatalf("writeStartupScript returned error: %v", err)
 	}
@@ -72,6 +72,21 @@ func TestWriteStartupScriptPrefersDetectedLauncher(t *testing.T) {
 	text := string(content)
 	if !strings.Contains(text, "./start_server_bepinex.sh") {
 		t.Fatalf("expected script to use BepInEx launcher, got: %s", text)
+	}
+	if !strings.Contains(text, "export SteamAppId=892970") {
+		t.Fatalf("expected script to export SteamAppId, got: %s", text)
+	}
+	if !strings.Contains(text, "export DOORSTOP_ENABLED=1") {
+		t.Fatalf("expected modded script to enable doorstop, got: %s", text)
+	}
+	if !strings.Contains(text, `./doorstop_libs:${LD_LIBRARY_PATH}`) {
+		t.Fatalf("expected script to prepend doorstop libs safely, got: %s", text)
+	}
+	if !strings.Contains(text, `./linux64:${LD_LIBRARY_PATH}`) {
+		t.Fatalf("expected script to prepend linux64 libs safely, got: %s", text)
+	}
+	if !strings.Contains(text, "-batchmode") || !strings.Contains(text, "-nographics") {
+		t.Fatalf("expected legacy batch/nographics flags, got: %s", text)
 	}
 	if !strings.Contains(text, `-world "DedicatedWorld"`) && !strings.Contains(text, "-world \"DedicatedWorld\"") {
 		t.Fatalf("expected world flag in script, got: %s", text)
@@ -87,7 +102,7 @@ func TestWriteStartupScriptFallsBackToVanillaLauncher(t *testing.T) {
 		ServerRoot:  serverRoot,
 		SaveRoot:    saveRoot,
 		ModpackRoot: filepath.Join(t.TempDir(), "modpack"),
-	}, Settings{World: "Dedicated", Password: "secret"})
+	}, Settings{World: "Dedicated", Password: "secret"}, false)
 	if err != nil {
 		t.Fatalf("writeStartupScript returned error: %v", err)
 	}
@@ -96,8 +111,18 @@ func TestWriteStartupScriptFallsBackToVanillaLauncher(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read startup script: %v", err)
 	}
-	if !strings.Contains(string(content), "./valheim_server.x86_64") {
-		t.Fatalf("expected fallback vanilla launcher, got: %s", string(content))
+	text := string(content)
+	if !strings.Contains(text, "./valheim_server.x86_64") {
+		t.Fatalf("expected fallback vanilla launcher, got: %s", text)
+	}
+	if strings.Contains(text, "export DOORSTOP_ENABLED=1") {
+		t.Fatalf("expected vanilla script to omit doorstop exports, got: %s", text)
+	}
+	if !strings.Contains(text, "export SteamAppId=892970") {
+		t.Fatalf("expected vanilla script to export SteamAppId, got: %s", text)
+	}
+	if !strings.Contains(text, `SAVE_ROOT=`+"\""+saveRoot+"\"") {
+		t.Fatalf("expected script to retain configured save root, got: %s", text)
 	}
 }
 
