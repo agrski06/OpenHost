@@ -3,6 +3,7 @@ package valheim
 import (
 	"bytes"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -10,10 +11,16 @@ import (
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/openhost/cli/internal/core"
+	"github.com/openhost/runnerconfig"
 )
 
-//go:embed init.sh
-var initScript string
+//go:embed bootstrap.sh
+var bootstrapScript string
+
+const defaultRunnerDownloadURL = "https://github.com/openhost/OpenHost/releases/download/runner-v%s/openhost-runner-linux-amd64"
+
+// RunnerVersion is intended to be overridden at build time via -ldflags.
+var RunnerVersion = "0.1.0"
 
 type Valheim struct{}
 
@@ -21,6 +28,8 @@ type Settings struct {
 	World            string `mapstructure:"world"`
 	Password         string `mapstructure:"password"`
 	ThunderstoreCode string `mapstructure:"thunderstore_code"`
+	RunnerVersion    string `mapstructure:"runner_version"`
+	RunnerURL        string `mapstructure:"runner_url"`
 }
 
 var thunderstoreCodePattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
@@ -47,30 +56,46 @@ func (g *Valheim) BuildInitCommand(rawSettings map[string]any) (string, error) {
 		return "", err
 	}
 
-	// Pull range from the interface definition
-	portRange := g.Ports()[0]
-
 	data := struct {
-		AppID            string
-		ServerName       string
-		WorldName        string
-		Password         string
-		Port             int
-		PortEnd          int
-		HasMods          bool
-		ThunderstoreCode string
+		RunnerVersion    string
+		RunnerURL        string
+		RunnerConfigJSON string
 	}{
-		AppID:            "896660",
-		ServerName:       "OpenHost-Valheim",
-		WorldName:        s.World,
-		Password:         s.Password,
-		Port:             portRange.From,
-		PortEnd:          portRange.To,
-		HasMods:          s.ThunderstoreCode != "",
-		ThunderstoreCode: s.ThunderstoreCode,
+		RunnerVersion: resolveRunnerVersion(s.RunnerVersion),
+		RunnerURL:     resolveRunnerURL(s.RunnerVersion, s.RunnerURL),
 	}
 
-	tmpl, err := template.New("valheim_init").Parse(initScript)
+	runnerConfig := runnerconfig.RunnerConfig{
+		Version: "1",
+		Game: runnerconfig.GameConfig{
+			Name: "valheim",
+			Settings: map[string]any{
+				"world":    s.World,
+				"password": s.Password,
+			},
+		},
+		Server: runnerconfig.ServerPaths{
+			ServerRoot:  "${SERVER_ROOT}",
+			SaveRoot:    "${SAVE_ROOT}",
+			ModpackRoot: "${MODPACK_ROOT}",
+		},
+	}
+	if s.ThunderstoreCode != "" {
+		runnerConfig.Game.Mods = &runnerconfig.ModConfig{
+			Sources: []runnerconfig.ModSource{{
+				Provider: "thunderstore",
+				Code:     s.ThunderstoreCode,
+			}},
+		}
+	}
+
+	configJSON, err := json.MarshalIndent(runnerConfig, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	data.RunnerConfigJSON = string(configJSON)
+
+	tmpl, err := template.New("valheim_bootstrap").Parse(bootstrapScript)
 	if err != nil {
 		return "", err
 	}
@@ -95,4 +120,18 @@ func validateThunderstoreCode(code string) error {
 		return fmt.Errorf("game.settings.thunderstore_code must be a bare Thunderstore/r2modman export code")
 	}
 	return nil
+}
+
+func resolveRunnerVersion(setting string) string {
+	if trimmed := strings.TrimSpace(setting); trimmed != "" {
+		return trimmed
+	}
+	return RunnerVersion
+}
+
+func resolveRunnerURL(settingVersion string, settingURL string) string {
+	if trimmed := strings.TrimSpace(settingURL); trimmed != "" {
+		return trimmed
+	}
+	return fmt.Sprintf(defaultRunnerDownloadURL, resolveRunnerVersion(settingVersion))
 }

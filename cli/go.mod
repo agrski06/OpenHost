@@ -4,6 +4,7 @@ go 1.26.1
 
 require (
 	github.com/hetznercloud/hcloud-go/v2 v2.36.0
+	github.com/openhost/runnerconfig v0.0.0
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
 )
@@ -36,3 +37,6 @@ require (
 	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/openhost/runnerconfig => ../pkg/runnerconfig
+

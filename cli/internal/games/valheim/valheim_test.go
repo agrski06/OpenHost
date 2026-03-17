@@ -1,11 +1,51 @@
 package valheim
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type renderedRunnerConfig struct {
+	Version string `json:"version"`
+	Game    struct {
+		Name     string             `json:"name"`
+		Settings map[string]any     `json:"settings"`
+		Mods     *renderedModConfig `json:"mods,omitempty"`
+	} `json:"game"`
+	Server struct {
+		ServerRoot  string `json:"server_root"`
+		SaveRoot    string `json:"save_root"`
+		ModpackRoot string `json:"modpack_root"`
+	} `json:"server"`
+}
+
+type renderedModConfig struct {
+	Sources []struct {
+		Provider string `json:"provider"`
+		Code     string `json:"code,omitempty"`
+	} `json:"sources"`
+}
+
+func extractRunnerConfigJSON(t *testing.T, command string) renderedRunnerConfig {
+	t.Helper()
+
+	const startMarker = "cat > \"$CONFIG_PATH\" <<RUNNER_CONFIG_EOF\n"
+	start := strings.Index(command, startMarker)
+	require.NotEqual(t, -1, start, "runner config heredoc not found")
+	start += len(startMarker)
+
+	end := strings.Index(command[start:], "\nRUNNER_CONFIG_EOF")
+	require.NotEqual(t, -1, end, "runner config terminator not found")
+
+	jsonBlob := command[start : start+end]
+	var cfg renderedRunnerConfig
+	require.NoError(t, json.Unmarshal([]byte(jsonBlob), &cfg))
+	return cfg
+}
 
 func TestBuildInitCommand_VanillaValheim(t *testing.T) {
 	game := &Valheim{}
@@ -16,12 +56,26 @@ func TestBuildInitCommand_VanillaValheim(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Contains(t, command, `OPENHOST_VALHEIM_HAS_MODS="false"`)
-	assert.Contains(t, command, `OPENHOST_VALHEIM_THUNDERSTORE_CODE=""`)
+	assert.Contains(t, command, `RUNNER_VERSION="0.1.0"`)
+	assert.Contains(t, command, `RUNNER_URL="https://github.com/openhost/OpenHost/releases/download/runner-v0.1.0/openhost-runner-linux-amd64"`)
+	assert.Contains(t, command, `RUNNER_BIN="${OPENHOST_RUNNER_BIN:-/usr/local/bin/openhost-runner}"`)
+	assert.Contains(t, command, `CONFIG_PATH="${OPENHOST_RUNNER_CONFIG_PATH:-/tmp/openhost-runner-config.json}"`)
 	assert.Contains(t, command, `OPENHOST_VALHEIM_LOCAL_DEBUG="${OPENHOST_VALHEIM_LOCAL_DEBUG:-false}"`)
 	assert.Contains(t, command, `SERVER_ROOT="${OPENHOST_VALHEIM_SERVER_ROOT:-/home/valheim/server}"`)
-	assert.Contains(t, command, `./valheim_server.x86_64 \`)
-	assert.NotContains(t, command, `./start_server_bepinex.sh \`)
+	assert.Contains(t, command, `if [ -x "$RUNNER_BIN" ]; then`)
+	assert.Contains(t, command, `command -v curl >/dev/null 2>&1 || { apt-get update -y && apt-get install -y curl; }`)
+	assert.Contains(t, command, `args=(--config "$CONFIG_PATH")`)
+	assert.Contains(t, command, `exec "$RUNNER_BIN" "${args[@]}"`)
+
+	cfg := extractRunnerConfigJSON(t, command)
+	assert.Equal(t, "1", cfg.Version)
+	assert.Equal(t, "valheim", cfg.Game.Name)
+	assert.Equal(t, "DedicatedWorld", cfg.Game.Settings["world"])
+	assert.Equal(t, "secret", cfg.Game.Settings["password"])
+	assert.Nil(t, cfg.Game.Mods)
+	assert.Equal(t, "${SERVER_ROOT}", cfg.Server.ServerRoot)
+	assert.Equal(t, "${SAVE_ROOT}", cfg.Server.SaveRoot)
+	assert.Equal(t, "${MODPACK_ROOT}", cfg.Server.ModpackRoot)
 }
 
 func TestBuildInitCommand_ThunderstoreModpack(t *testing.T) {
@@ -34,62 +88,11 @@ func TestBuildInitCommand_ThunderstoreModpack(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Contains(t, command, `OPENHOST_VALHEIM_HAS_MODS="true"`)
-	assert.Contains(t, command, `OPENHOST_VALHEIM_THUNDERSTORE_CODE="ABC123_code"`)
-	assert.Contains(t, command, `https://thunderstore.io/api/experimental/profile/get/${code}/`)
-	assert.Contains(t, command, `https://thunderstore.io/api/experimental/legacyprofile/get/valheim/${code}/`)
-	assert.Contains(t, command, `resolve_thunderstore_profile "$OPENHOST_VALHEIM_THUNDERSTORE_CODE" "$PROFILE_PAYLOAD"`)
-	assert.Contains(t, command, `local debug mode enabled; privileged setup, ownership changes, firewall updates, and automatic server start will be skipped`)
-	assert.Contains(t, command, `local debug mode skipping system package setup, user creation, and Steam installation`)
-	assert.Contains(t, command, `returned an unsupported payload`)
-	assert.Contains(t, command, `resolved Thunderstore payload format '`)
-	assert.Contains(t, command, `detect_profile_payload_format`)
-	assert.Contains(t, command, `log_package_summary`)
-	assert.Contains(t, command, `install_r2modman_export`)
-	assert.Contains(t, command, `decoded r2modman payload`)
-	assert.Contains(t, command, `applied exported r2modman overlay files`)
-	assert.Contains(t, command, `resolve_package_install_root`)
-	assert.Contains(t, command, `start_server_bepinex.sh`)
-	assert.Contains(t, command, `doorstop_libs`)
-	assert.Contains(t, command, `README|README.*|CHANGELOG|CHANGELOG.*|manifest.json|icon.png|LICENSE|LICENSE.*`)
-	assert.Contains(t, command, `plugins`)
-	assert.Contains(t, command, `-iname '*.dll'`)
-	assert.Contains(t, command, `using detected nested package root`)
-	assert.Contains(t, command, `install_package_root_contents`)
-	assert.Contains(t, command, `BepInEx/plugins/${package_name}`)
-	assert.Contains(t, command, `merging BepInEx tree`)
-	assert.Contains(t, command, `merging plugin directory`)
-	assert.Contains(t, command, `copying package bundle entry`)
-	assert.Contains(t, command, `ensure_server_root_launcher`)
-	assert.Contains(t, command, `promoted launcher`)
-	assert.Contains(t, command, `log_bepinex_runtime_status`)
-	assert.Contains(t, command, `BepInEx preloader found`)
-	assert.Contains(t, command, `doorstop runtime found`)
-	assert.Contains(t, command, `launcher 'start_server_bepinex.sh' is executable`)
-	assert.Contains(t, command, `launcher 'start_game_bepinex.sh'`)
-	assert.Contains(t, command, `log_bepinex_plugin_status`)
-	assert.Contains(t, command, `detected ${#plugin_dlls[@]} plugin DLL(s) under`)
-	assert.Contains(t, command, `plugin DLLs:`)
-	assert.Contains(t, command, `local debug mode skipping firewall changes`)
-	assert.Contains(t, command, `local debug mode skipping automatic server start`)
-	assert.Contains(t, command, `extract_r2modman_export_packages`)
-	assert.Contains(t, command, `found r2modman manifest`)
-	assert.Contains(t, command, `extracted r2modman manifest`)
-	assert.Contains(t, command, `extract_package_identifiers_from_r2x`)
-	assert.Contains(t, command, `printf "%s-%s.%s.%s\n", name, major, minor, patch`)
-	assert.Contains(t, command, `https://thunderstore.io/package/download/${namespace}/${package_name}/${version}/`)
-	assert.Contains(t, command, `produced ${#packages[@]} installable package(s)`)
-	assert.Contains(t, command, `package list:`)
-	assert.Contains(t, command, `installing Thunderstore package ${namespace}/${package_name}@${version}`)
-	assert.Contains(t, command, `export.r2x`)
-	assert.Contains(t, command, `"format": "r2modman"`)
-	assert.Contains(t, command, `"source": "legacyprofile_export"`)
-	assert.Contains(t, command, `PACKAGE_LIST="${MODPACK_ROOT}/packages.txt"`)
-	assert.Contains(t, command, `export DOORSTOP_ENABLED=1`)
-	assert.Contains(t, command, `export DOORSTOP_TARGET_ASSEMBLY=./BepInEx/core/BepInEx.Preloader.dll`)
-	assert.Contains(t, command, `export LD_PRELOAD="libdoorstop_x64.so:$LD_PRELOAD"`)
-	assert.Contains(t, command, `launching Valheim server with injected BepInEx environment`)
-	assert.Contains(t, command, `./valheim_server.x86_64 \`)
+	cfg := extractRunnerConfigJSON(t, command)
+	require.NotNil(t, cfg.Game.Mods)
+	require.Len(t, cfg.Game.Mods.Sources, 1)
+	assert.Equal(t, "thunderstore", cfg.Game.Mods.Sources[0].Provider)
+	assert.Equal(t, "ABC123_code", cfg.Game.Mods.Sources[0].Code)
 }
 
 func TestBuildInitCommand_UUIDThunderstoreCode(t *testing.T) {
@@ -102,8 +105,9 @@ func TestBuildInitCommand_UUIDThunderstoreCode(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Contains(t, command, `OPENHOST_VALHEIM_THUNDERSTORE_CODE="019cf113-4729-c139-63ac-ea85dafcffd6"`)
-	assert.Contains(t, command, `api/experimental/legacyprofile/get/valheim/${code}`)
+	cfg := extractRunnerConfigJSON(t, command)
+	require.NotNil(t, cfg.Game.Mods)
+	assert.Equal(t, "019cf113-4729-c139-63ac-ea85dafcffd6", cfg.Game.Mods.Sources[0].Code)
 }
 
 func TestBuildInitCommand_InvalidThunderstoreCode(t *testing.T) {
@@ -139,5 +143,20 @@ func TestBuildInitCommand_DefaultWorldWithMods(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Contains(t, command, `-world "Dedicated"`)
+	cfg := extractRunnerConfigJSON(t, command)
+	assert.Equal(t, "Dedicated", cfg.Game.Settings["world"])
+}
+
+func TestBuildInitCommand_RunnerOverrides(t *testing.T) {
+	game := &Valheim{}
+
+	command, err := game.BuildInitCommand(map[string]any{
+		"password":       "secret",
+		"runner_version": "1.2.3-test",
+		"runner_url":     "https://example.invalid/openhost-runner-linux-amd64",
+	})
+	require.NoError(t, err)
+
+	assert.Contains(t, command, `RUNNER_VERSION="1.2.3-test"`)
+	assert.Contains(t, command, `RUNNER_URL="https://example.invalid/openhost-runner-linux-amd64"`)
 }
