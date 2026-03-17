@@ -11,14 +11,6 @@ on:
       - 'go.work'
       - '.github/workflows/runner-ci.yml'
       - '.github/workflows/release-runner.yml'
-  pull_request:
-    paths:
-      - 'runner/**'
-      - 'pkg/runnerconfig/**'
-      - 'cli/internal/games/valheim/**'
-      - 'go.work'
-      - '.github/workflows/runner-ci.yml'
-      - '.github/workflows/release-runner.yml'
   workflow_dispatch:
 
 jobs:
