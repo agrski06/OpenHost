@@ -17,7 +17,7 @@ import (
 //go:embed bootstrap.sh
 var bootstrapScript string
 
-const defaultRunnerDownloadURL = "https://github.com/openhost/OpenHost/releases/download/runner-v%s/openhost-runner-linux-amd64"
+const defaultRunnerDownloadURL = "https://github.com/agrski06/OpenGameHost/releases/download/runner-v%s/openhost-runner-linux-amd64"
 
 // RunnerVersion is intended to be overridden at build time via -ldflags.
 var RunnerVersion = "0.1.0"
