@@ -47,3 +47,15 @@ func NewManager(executor Executor, logger *slog.Logger) *Manager {
 	}
 	return &Manager{Executor: executor, Logger: logger}
 }
+
+func (m *Manager) CommandExists(ctx context.Context, name string) (bool, error) {
+	if strings.TrimSpace(name) == "" {
+		return false, nil
+	}
+
+	output, err := m.Executor.CombinedOutput(ctx, "sh", "-c", "if command -v \"$1\" >/dev/null 2>&1; then printf yes; fi", "sh", name)
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(string(output)) == "yes", nil
+}

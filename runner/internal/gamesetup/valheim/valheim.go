@@ -16,14 +16,15 @@ import (
 )
 
 const (
-	appID          = "896660"
-	serviceName    = "openhost-valheim.service"
-	startupScript  = "start_valheim_custom.sh"
-	defaultUser    = "valheim"
-	defaultName    = "OpenHost-Valheim"
-	defaultWorld   = "Dedicated"
-	defaultUDPFrom = 2456
-	defaultUDPTo   = 2458
+	appID           = "896660"
+	serviceName     = "openhost-valheim.service"
+	startupScript   = "start_valheim_custom.sh"
+	defaultUser     = "valheim"
+	defaultHomeRoot = "/home/valheim"
+	defaultName     = "OpenHost-Valheim"
+	defaultWorld    = "Dedicated"
+	defaultUDPFrom  = 2456
+	defaultUDPTo    = 2458
 )
 
 type GameSetup struct{}
@@ -96,6 +97,9 @@ func (g *GameSetup) Setup(ctx context.Context, cfg runnerconfig.RunnerConfig, en
 	if err := env.System.ChownR(ctx, cfg.Server.SaveRoot, defaultUser); err != nil {
 		return fmt.Errorf("chown save root: %w", err)
 	}
+	if err := configureFirewall(ctx, env.System); err != nil {
+		return err
+	}
 	if err := writeSystemdService(ctx, env.System, cfg.Server.ServerRoot, startupPath); err != nil {
 		return err
 	}
@@ -134,20 +138,76 @@ func provisionSystem(ctx context.Context, manager *system.Manager, serverRoot st
 	if manager == nil {
 		return fmt.Errorf("system manager is required")
 	}
-	if err := manager.EnsureUser(ctx, defaultUser); err != nil {
-		return fmt.Errorf("ensure user %q: %w", defaultUser, err)
+	if err := manager.AddArchitecture(ctx, "i386"); err != nil {
+		return fmt.Errorf("add dpkg architecture: %w", err)
 	}
-	if err := manager.EnsureAptPackages(ctx, "ca-certificates", "curl", "lib32gcc-s1", "ufw"); err != nil {
-		return fmt.Errorf("install base packages: %w", err)
+	if err := manager.AptUpdate(ctx); err != nil {
+		return fmt.Errorf("apt update: %w", err)
 	}
-	if err := manager.EnsureSteamCMD(ctx); err != nil {
-		return fmt.Errorf("ensure steamcmd: %w", err)
+	if err := manager.InstallAptPackages(ctx, "software-properties-common"); err != nil {
+		return fmt.Errorf("install software-properties-common: %w", err)
 	}
-	if err := manager.SteamAppUpdate(ctx, appID, serverRoot); err != nil {
+	if err := manager.AddAptRepository(ctx, "multiverse"); err != nil {
+		return fmt.Errorf("add multiverse repository: %w", err)
+	}
+	if err := manager.AddAptRepository(ctx, "universe"); err != nil {
+		return fmt.Errorf("add universe repository: %w", err)
+	}
+	if err := manager.PreseedDebconfSelection(ctx, "steam steam/question select I AGREE"); err != nil {
+		return fmt.Errorf("preseed steam question: %w", err)
+	}
+	if err := manager.PreseedDebconfSelection(ctx, "steam steam/license note ''"); err != nil {
+		return fmt.Errorf("preseed steam license: %w", err)
+	}
+	if err := manager.AptUpdate(ctx); err != nil {
+		return fmt.Errorf("apt update (post-repo): %w", err)
+	}
+	if err := manager.InstallAptPackages(ctx,
+		"steamcmd",
+		"screen",
+		"libpulse0",
+		"libatomic1",
+		"lib32gcc-s1",
+		"curl",
+		"libpulse-dev",
+		"libc6",
+		"jq",
+		"unzip",
+	); err != nil {
+		return fmt.Errorf("install valheim packages: %w", err)
+	}
+	if err := manager.CreateUser(ctx, defaultUser); err != nil {
+		return fmt.Errorf("create user %q: %w", defaultUser, err)
+	}
+	if err := manager.ChownR(ctx, defaultHomeRoot, defaultUser); err != nil {
+		return fmt.Errorf("chown %s: %w", defaultHomeRoot, err)
+	}
+	if err := manager.SteamCMDAnonymousLogin(ctx, defaultUser); err != nil {
+		return fmt.Errorf("warm steamcmd: %w", err)
+	}
+	if err := manager.SteamAppUpdateAsUser(ctx, defaultUser, appID, serverRoot); err != nil {
 		return fmt.Errorf("install/update valheim server: %w", err)
+	}
+	return nil
+}
+
+func configureFirewall(ctx context.Context, manager *system.Manager) error {
+	if manager == nil {
+		return fmt.Errorf("system manager is required")
+	}
+
+	hasUFW, err := manager.CommandExists(ctx, "ufw")
+	if err != nil {
+		return fmt.Errorf("check ufw availability: %w", err)
+	}
+	if !hasUFW {
+		return nil
 	}
 	if err := manager.AllowUDPRange(ctx, defaultUDPFrom, defaultUDPTo); err != nil {
 		return fmt.Errorf("configure firewall: %w", err)
+	}
+	if err := manager.ReloadFirewall(ctx); err != nil {
+		return fmt.Errorf("reload firewall: %w", err)
 	}
 	return nil
 }

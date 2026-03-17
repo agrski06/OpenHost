@@ -2,6 +2,15 @@ package system
 
 import "context"
 
+func (m *Manager) CreateUser(ctx context.Context, user string) error {
+	if user == "" {
+		return nil
+	}
+
+	m.Logger.Info("creating system user", "user", user)
+	return m.Executor.Run(ctx, "useradd", "-m", "-s", "/bin/bash", user)
+}
+
 func (m *Manager) EnsureUser(ctx context.Context, user string) error {
 	if user == "" {
 		return nil

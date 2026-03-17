@@ -14,3 +14,8 @@ func (m *Manager) AllowTCPPort(ctx context.Context, port int) error {
 	m.Logger.Info("opening tcp firewall port", "port", port)
 	return m.Executor.Run(ctx, "ufw", "allow", fmt.Sprintf("%d/tcp", port))
 }
+
+func (m *Manager) ReloadFirewall(ctx context.Context) error {
+	m.Logger.Info("reloading firewall rules")
+	return m.Executor.Run(ctx, "ufw", "reload")
+}
