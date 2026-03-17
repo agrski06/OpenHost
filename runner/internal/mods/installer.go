@@ -13,7 +13,7 @@ import (
 )
 
 func SanitizeZipEntryPath(name string) (string, error) {
-	clean := filepath.ToSlash(name)
+	clean := strings.ReplaceAll(name, "\\", "/")
 	clean = path.Clean(clean)
 	clean = strings.TrimPrefix(clean, "/")
 	if clean == "." || clean == "" {
@@ -60,16 +60,16 @@ func ExtractZipToDir(archive []byte, destination string) error {
 		}
 		out, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, file.Mode())
 		if err != nil {
-			rc.Close()
+			_ = rc.Close()
 			return err
 		}
 		if _, err := io.Copy(out, rc); err != nil {
-			out.Close()
-			rc.Close()
+			_ = out.Close()
+			_ = rc.Close()
 			return err
 		}
 		if err := out.Close(); err != nil {
-			rc.Close()
+			_ = rc.Close()
 			return err
 		}
 		if err := rc.Close(); err != nil {
@@ -85,7 +85,7 @@ func InstallArchive(archive []byte, destination string) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	if err := ExtractZipToDir(archive, tempDir); err != nil {
 		return err
@@ -142,7 +142,7 @@ func CopyTree(source string, destination string) error {
 		}
 		out, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode())
 		if err != nil {
-			in.Close()
+			_ = in.Close()
 			return err
 		}
 		_, err = io.Copy(out, in)
