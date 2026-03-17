@@ -237,3 +237,48 @@ func TestConfigureFirewallAppliesLegacyCommandsWhenUFWAvailable(t *testing.T) {
 		t.Fatalf("unexpected firewall commands\n got: %#v\nwant: %#v", executor.runs, want)
 	}
 }
+
+func TestBuildSystemdUnitMatchesLegacyServiceSemantics(t *testing.T) {
+	t.Parallel()
+
+	unit := buildSystemdUnit("/srv/valheim", "/srv/valheim/start_valheim_custom.sh")
+	rendered := unit.Render()
+
+	for _, want := range []string{
+		"Description=OpenHost Valheim Dedicated Server",
+		"Wants=network-online.target",
+		"After=network-online.target",
+		"Type=simple",
+		"User=valheim",
+		"Group=valheim",
+		"WorkingDirectory=/srv/valheim",
+		"ExecStart=/bin/bash -lc '/srv/valheim/start_valheim_custom.sh'",
+		"Restart=always",
+		"RestartSec=10",
+		"KillSignal=SIGINT",
+		"TimeoutStopSec=30",
+		"LimitNOFILE=100000",
+		"StandardOutput=journal",
+		"StandardError=journal",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("expected rendered unit to contain %q, got:\n%s", want, rendered)
+		}
+	}
+}
+
+func TestRestartValheimServiceUsesSystemctlRestart(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	manager := silentSystemManager(executor)
+
+	if err := restartValheimService(context.Background(), manager); err != nil {
+		t.Fatalf("restartValheimService returned error: %v", err)
+	}
+
+	want := []recordedCommand{{name: "systemctl", args: []string{"restart", serviceName}}}
+	if !reflect.DeepEqual(executor.runs, want) {
+		t.Fatalf("unexpected restart commands\n got: %#v\nwant: %#v", executor.runs, want)
+	}
+}

@@ -11,21 +11,44 @@ import (
 
 type Unit struct {
 	Description      string
+	Wants            string
+	After            string
+	Type             string
 	WorkingDirectory string
 	ExecStart        string
 	User             string
+	Group            string
 	Environment      map[string]string
 	Restart          string
+	RestartSec       string
+	KillSignal       string
+	TimeoutStopSec   string
+	LimitNOFILE      string
+	StandardOutput   string
+	StandardError    string
 }
 
 func (u Unit) Render() string {
 	var builder strings.Builder
 	builder.WriteString("[Unit]\n")
 	builder.WriteString("Description=" + u.Description + "\n")
-	builder.WriteString("After=network.target\n\n")
-	builder.WriteString("[Service]\n")
+	if u.Wants != "" {
+		builder.WriteString("Wants=" + u.Wants + "\n")
+	}
+	if u.After != "" {
+		builder.WriteString("After=" + u.After + "\n")
+	} else {
+		builder.WriteString("After=network.target\n")
+	}
+	builder.WriteString("\n[Service]\n")
+	if u.Type != "" {
+		builder.WriteString("Type=" + u.Type + "\n")
+	}
 	if u.User != "" {
 		builder.WriteString("User=" + u.User + "\n")
+	}
+	if u.Group != "" {
+		builder.WriteString("Group=" + u.Group + "\n")
 	}
 	if u.WorkingDirectory != "" {
 		builder.WriteString("WorkingDirectory=" + u.WorkingDirectory + "\n")
@@ -42,6 +65,24 @@ func (u Unit) Render() string {
 	builder.WriteString("ExecStart=" + u.ExecStart + "\n")
 	if u.Restart != "" {
 		builder.WriteString("Restart=" + u.Restart + "\n")
+	}
+	if u.RestartSec != "" {
+		builder.WriteString("RestartSec=" + u.RestartSec + "\n")
+	}
+	if u.KillSignal != "" {
+		builder.WriteString("KillSignal=" + u.KillSignal + "\n")
+	}
+	if u.TimeoutStopSec != "" {
+		builder.WriteString("TimeoutStopSec=" + u.TimeoutStopSec + "\n")
+	}
+	if u.LimitNOFILE != "" {
+		builder.WriteString("LimitNOFILE=" + u.LimitNOFILE + "\n")
+	}
+	if u.StandardOutput != "" {
+		builder.WriteString("StandardOutput=" + u.StandardOutput + "\n")
+	}
+	if u.StandardError != "" {
+		builder.WriteString("StandardError=" + u.StandardError + "\n")
 	}
 	builder.WriteString("\n[Install]\nWantedBy=multi-user.target\n")
 	return builder.String()

@@ -108,8 +108,8 @@ func (g *GameSetup) Setup(ctx context.Context, cfg runnerconfig.RunnerConfig, en
 		logger.Info("skip_server_start enabled; leaving Valheim service disabled at runtime")
 		return nil
 	}
-	if err := env.System.StartService(ctx, serviceName); err != nil {
-		return fmt.Errorf("start %s: %w", serviceName, err)
+	if err := restartValheimService(ctx, env.System); err != nil {
+		return err
 	}
 	return nil
 }
@@ -315,13 +315,7 @@ fi
 }
 
 func writeSystemdService(ctx context.Context, manager *system.Manager, serverRoot string, startupPath string) error {
-	if _, err := manager.WriteService(serviceName, system.Unit{
-		Description:      "OpenHost Valheim dedicated server",
-		WorkingDirectory: serverRoot,
-		ExecStart:        startupPath,
-		User:             defaultUser,
-		Restart:          "on-failure",
-	}); err != nil {
+	if _, err := manager.WriteService(serviceName, buildSystemdUnit(serverRoot, startupPath)); err != nil {
 		return fmt.Errorf("write %s: %w", serviceName, err)
 	}
 	if err := manager.DaemonReload(ctx); err != nil {
@@ -331,6 +325,37 @@ func writeSystemdService(ctx context.Context, manager *system.Manager, serverRoo
 		return fmt.Errorf("enable %s: %w", serviceName, err)
 	}
 	return nil
+}
+
+func buildSystemdUnit(serverRoot string, startupPath string) system.Unit {
+	return system.Unit{
+		Description:      "OpenHost Valheim Dedicated Server",
+		Wants:            "network-online.target",
+		After:            "network-online.target",
+		Type:             "simple",
+		User:             defaultUser,
+		Group:            defaultUser,
+		WorkingDirectory: serverRoot,
+		ExecStart:        fmt.Sprintf("/bin/bash -lc %s", singleQuoteForShell(startupPath)),
+		Restart:          "always",
+		RestartSec:       "10",
+		KillSignal:       "SIGINT",
+		TimeoutStopSec:   "30",
+		LimitNOFILE:      "100000",
+		StandardOutput:   "journal",
+		StandardError:    "journal",
+	}
+}
+
+func restartValheimService(ctx context.Context, manager *system.Manager) error {
+	if err := manager.RestartService(ctx, serviceName); err != nil {
+		return fmt.Errorf("restart %s: %w", serviceName, err)
+	}
+	return nil
+}
+
+func singleQuoteForShell(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
 
 func init() {
