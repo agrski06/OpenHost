@@ -1,17 +1,12 @@
 package minecraft
 
 import (
-	"bytes"
-	_ "embed"
 	"fmt"
-	"text/template"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/openhost/cli/internal/core"
+	"github.com/openhost/runnerconfig"
 )
-
-//go:embed init.sh
-var initScript string
 
 type Minecraft struct{}
 
@@ -49,10 +44,10 @@ func (g *Minecraft) Ports() []core.PortRange {
 	}
 }
 
-func (g *Minecraft) BuildInitCommand(rawSettings map[string]any) (string, error) {
+func (g *Minecraft) BuildRunnerConfig(rawSettings map[string]any) (*runnerconfig.RunnerConfig, error) {
 	var s Settings
 	if err := mapstructure.Decode(rawSettings, &s); err != nil {
-		return "", fmt.Errorf("decode minecraft settings: %w", err)
+		return nil, fmt.Errorf("decode minecraft settings: %w", err)
 	}
 
 	if s.Version == "" {
@@ -65,7 +60,7 @@ func (g *Minecraft) BuildInitCommand(rawSettings map[string]any) (string, error)
 		for v := range knownVersions {
 			supported = append(supported, v)
 		}
-		return "", fmt.Errorf("unsupported minecraft version %q; supported: %v", s.Version, supported)
+		return nil, fmt.Errorf("unsupported minecraft version %q; supported: %v", s.Version, supported)
 	}
 
 	if s.MinMem == "" {
@@ -75,33 +70,31 @@ func (g *Minecraft) BuildInitCommand(rawSettings map[string]any) (string, error)
 		s.MaxMem = "4G"
 	}
 
-	primaryPort := g.Ports()[0].From
-
-	data := struct {
-		JavaPackage string
-		DownloadURL string
-		MinMem      string
-		MaxMem      string
-		Port        int
-	}{
-		JavaPackage: "openjdk-21-jre-headless",
-		DownloadURL: downloadURL,
-		MinMem:      s.MinMem,
-		MaxMem:      s.MaxMem,
-		Port:        primaryPort,
+	settings := map[string]any{
+		"min_mem": s.MinMem,
+		"max_mem": s.MaxMem,
+		"version": s.Version,
 	}
 
-	tmpl, err := template.New("mc_init").Parse(initScript)
-	if err != nil {
-		return "", err
+	cfg := &runnerconfig.RunnerConfig{
+		Version: "1",
+		Game: runnerconfig.GameConfig{
+			Name:     "minecraft",
+			Settings: settings,
+			Install: runnerconfig.InstallConfig{
+				Method:       "http",
+				DownloadURL:  downloadURL,
+				DestFilename: "server.jar",
+			},
+		},
+		Server: runnerconfig.ServerPaths{
+			ServerRoot:  "/home/minecraft/server",
+			SaveRoot:    "/home/minecraft/saves",
+			ModpackRoot: "/home/minecraft/modpack",
+		},
 	}
 
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
-		return "", err
-	}
-
-	return buf.String(), nil
+	return cfg, nil
 }
 
 func init() {

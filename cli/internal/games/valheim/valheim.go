@@ -1,19 +1,14 @@
 package valheim
 
 import (
-	"bytes"
-	_ "embed"
 	"fmt"
 	"regexp"
 	"strings"
-	"text/template"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/openhost/cli/internal/core"
+	"github.com/openhost/runnerconfig"
 )
-
-//go:embed init.sh
-var initScript string
 
 type Valheim struct{}
 
@@ -31,56 +26,56 @@ func (g *Valheim) Ports() []core.PortRange {
 		{Protocol: "udp", From: 2456, To: 2458},
 	}
 }
-func (g *Valheim) Protocol() string { return "udp" }
 
-func (g *Valheim) BuildInitCommand(rawSettings map[string]any) (string, error) {
+func (g *Valheim) BuildRunnerConfig(rawSettings map[string]any) (*runnerconfig.RunnerConfig, error) {
 	s := Settings{World: "Dedicated"}
 	if err := mapstructure.Decode(rawSettings, &s); err != nil {
-		return "", err
+		return nil, err
 	}
 	if rawCode, ok := rawSettings["thunderstore_code"]; ok && strings.TrimSpace(fmt.Sprint(rawCode)) == "" {
-		return "", fmt.Errorf("game.settings.thunderstore_code cannot be empty when provided")
+		return nil, fmt.Errorf("game.settings.thunderstore_code cannot be empty when provided")
 	}
 
 	s.ThunderstoreCode = strings.TrimSpace(s.ThunderstoreCode)
 	if err := validateThunderstoreCode(s.ThunderstoreCode); err != nil {
-		return "", err
+		return nil, err
 	}
 
-	// Pull range from the interface definition
-	portRange := g.Ports()[0]
-
-	data := struct {
-		AppID            string
-		ServerName       string
-		WorldName        string
-		Password         string
-		Port             int
-		PortEnd          int
-		HasMods          bool
-		ThunderstoreCode string
-	}{
-		AppID:            "896660",
-		ServerName:       "OpenHost-Valheim",
-		WorldName:        s.World,
-		Password:         s.Password,
-		Port:             portRange.From,
-		PortEnd:          portRange.To,
-		HasMods:          s.ThunderstoreCode != "",
-		ThunderstoreCode: s.ThunderstoreCode,
+	settings := map[string]any{
+		"world":    s.World,
+		"password": s.Password,
 	}
 
-	tmpl, err := template.New("valheim_init").Parse(initScript)
-	if err != nil {
-		return "", err
+	cfg := &runnerconfig.RunnerConfig{
+		Version: "1",
+		Game: runnerconfig.GameConfig{
+			Name:     "valheim",
+			Settings: settings,
+			Install: runnerconfig.InstallConfig{
+				Method:     "steamcmd",
+				SteamAppID: "896660",
+				Anonymous:  true,
+			},
+		},
+		Server: runnerconfig.ServerPaths{
+			ServerRoot:  "/home/valheim/server",
+			SaveRoot:    "/home/valheim/saves",
+			ModpackRoot: "/home/valheim/modpack",
+		},
 	}
 
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
-		return "", err
+	if s.ThunderstoreCode != "" {
+		cfg.Game.Mods = &runnerconfig.ModConfig{
+			Sources: []runnerconfig.ModSource{
+				{
+					Provider: "thunderstore",
+					Code:     s.ThunderstoreCode,
+				},
+			},
+		}
 	}
 
-	return buf.String(), nil
+	return cfg, nil
 }
 
 func init() {

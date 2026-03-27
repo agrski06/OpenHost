@@ -4,8 +4,11 @@ go 1.26.1
 
 require (
 	github.com/hetznercloud/hcloud-go/v2 v2.36.0
+	github.com/openhost/runnerconfig v0.0.0
 	github.com/spf13/viper v1.21.0
 )
+
+replace github.com/openhost/runnerconfig => ../pkg/runnerconfig
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect

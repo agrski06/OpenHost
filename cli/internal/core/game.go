@@ -1,5 +1,7 @@
 package core
 
+import "github.com/openhost/runnerconfig"
+
 type PortRange struct {
 	Protocol string // "tcp" or "udp"
 	From     int
@@ -9,5 +11,5 @@ type PortRange struct {
 type Game interface {
 	Name() string
 	Ports() []PortRange
-	BuildInitCommand(rawSettings map[string]any) (string, error)
+	BuildRunnerConfig(rawSettings map[string]any) (*runnerconfig.RunnerConfig, error)
 }
