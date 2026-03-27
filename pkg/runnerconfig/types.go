@@ -31,6 +31,26 @@ type GameConfig struct {
 
 	// Mods is optional mod configuration. Nil means no mods.
 	Mods *ModConfig `json:"mods,omitempty"`
+
+	// Install describes how to obtain the game server binary.
+	Install InstallConfig `json:"install"`
+}
+
+// InstallConfig describes the installation method for the game server binary.
+type InstallConfig struct {
+	// Method is "steamcmd" or "http".
+	Method string `json:"method"`
+
+	// SteamCMD-specific fields.
+	SteamAppID string `json:"steam_app_id,omitempty"`
+	Anonymous  bool   `json:"anonymous,omitempty"`
+	BetaBranch string `json:"beta_branch,omitempty"`
+
+	// HTTP-download-specific fields.
+	DownloadURL  string `json:"download_url,omitempty"`
+	DestFilename string `json:"dest_filename,omitempty"`
+	ExtractZip   bool   `json:"extract_zip,omitempty"`
+	ExtractTar   bool   `json:"extract_tar,omitempty"`
 }
 
 // ModConfig is provider-agnostic. Each game declares which mod sources it uses.

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/openhost/cli/internal/cloudinit"
 	"github.com/openhost/cli/internal/config"
 	"github.com/openhost/cli/internal/core"
 	"github.com/openhost/cli/internal/state"
@@ -30,9 +31,14 @@ func DeployFromConfig(configPath string) (*core.Server, error) {
 		return nil, fmt.Errorf("resolve game %q: %w", parsedConfig.Game.Name, err)
 	}
 
-	userData, err := game.BuildInitCommand(parsedConfig.Game.Settings)
+	runnerCfg, err := game.BuildRunnerConfig(parsedConfig.Game.Settings)
 	if err != nil {
-		return nil, fmt.Errorf("build init command for game %q: %w", parsedConfig.Game.Name, err)
+		return nil, fmt.Errorf("build runner config for game %q: %w", parsedConfig.Game.Name, err)
+	}
+
+	userData, err := cloudinit.BuildUserData(runnerCfg, "0.1.0")
+	if err != nil {
+		return nil, fmt.Errorf("build user data for game %q: %w", parsedConfig.Game.Name, err)
 	}
 
 	ctx := context.Background()

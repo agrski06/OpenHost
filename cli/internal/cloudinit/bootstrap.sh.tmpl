@@ -1,0 +1,18 @@
+#!/bin/bash
+set -euo pipefail
+
+# Write the runner config JSON to disk.
+cat > /tmp/openhost-runner-config.json << 'OPENHOST_CONFIG_EOF'
+{{ .ConfigJSON }}
+OPENHOST_CONFIG_EOF
+
+# Download the runner binary from GitHub Releases.
+RUNNER_URL="https://github.com/agrski06/openhost/releases/download/runner-v{{ .RunnerVersion }}/openhost-runner-linux-amd64"
+RUNNER_BIN="/usr/local/bin/openhost-runner"
+
+curl -fsSL -o "${RUNNER_BIN}" "${RUNNER_URL}"
+chmod +x "${RUNNER_BIN}"
+
+# Execute the runner with the config.
+exec "${RUNNER_BIN}" -config /tmp/openhost-runner-config.json
+
