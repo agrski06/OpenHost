@@ -9,6 +9,7 @@ import (
 
 	// Providers registration
 	_ "github.com/openhost/cli/internal/providers/hetzner"
+	_ "github.com/openhost/cli/internal/providers/local"
 	_ "github.com/openhost/cli/internal/providers/mock"
 
 	// Games registration

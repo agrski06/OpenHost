@@ -24,5 +24,13 @@ func (c *CLI) runUp(args []string) error {
 		return err
 	}
 
+	for _, res := range server.AssociatedResources {
+		if res.Type == "log" {
+			if _, err := fmt.Fprintf(c.stdout, "Logs: %s\n", res.ID); err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }

@@ -34,7 +34,7 @@ func (v *Valheim) ServerPaths() runnerconfig.ServerPaths {
 	}
 }
 
-func (v *Valheim) BuildLaunchCommand(cfg runnerconfig.GameConfig) core.LaunchConfig {
+func (v *Valheim) BuildLaunchCommand(cfg runnerconfig.GameConfig, paths runnerconfig.ServerPaths) core.LaunchConfig {
 	world := "Dedicated"
 	password := ""
 	if w, ok := cfg.Settings["world"].(string); ok && w != "" {
@@ -44,7 +44,6 @@ func (v *Valheim) BuildLaunchCommand(cfg runnerconfig.GameConfig) core.LaunchCon
 		password = p
 	}
 
-	paths := v.ServerPaths()
 	hasMods := cfg.Mods != nil && len(cfg.Mods.Sources) > 0
 
 	// Write the startup script to ServerRoot.

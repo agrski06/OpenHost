@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/openhost/runner/internal/core"
 	"github.com/openhost/runner/internal/install"
@@ -24,7 +26,20 @@ func Run(cfg *runnerconfig.RunnerConfig) error {
 		return fmt.Errorf("resolve game setup: %w", err)
 	}
 
-	paths := game.ServerPaths()
+	// Use paths from config if provided, otherwise fall back to game defaults.
+	paths := cfg.Server
+	if paths.ServerRoot == "" || paths.SaveRoot == "" || paths.ModpackRoot == "" {
+		defaults := game.ServerPaths()
+		if paths.ServerRoot == "" {
+			paths.ServerRoot = defaults.ServerRoot
+		}
+		if paths.SaveRoot == "" {
+			paths.SaveRoot = defaults.SaveRoot
+		}
+		if paths.ModpackRoot == "" {
+			paths.ModpackRoot = defaults.ModpackRoot
+		}
+	}
 	user := game.SystemUser()
 
 	// 2. System bootstrap (skip in local/debug mode).
@@ -69,7 +84,7 @@ func Run(cfg *runnerconfig.RunnerConfig) error {
 	}
 
 	// 6. Build launch configuration.
-	launchCfg := game.BuildLaunchCommand(cfg.Game)
+	launchCfg := game.BuildLaunchCommand(cfg.Game, paths)
 
 	// 7. Set file ownership.
 	if !cfg.Debug.LocalMode {
@@ -83,9 +98,16 @@ func Run(cfg *runnerconfig.RunnerConfig) error {
 
 	// 8. Start the game server.
 	if !cfg.Debug.SkipServerStart {
-		log.Println("[setup] starting game server service:", launchCfg.ServiceName)
-		if err := system.CreateAndStartService(launchCfg); err != nil {
-			return fmt.Errorf("start service: %w", err)
+		if cfg.Debug.LocalMode {
+			log.Println("[setup] starting game server process directly:", launchCfg.ExecStart)
+			if err := startProcessDirectly(launchCfg); err != nil {
+				return fmt.Errorf("start process: %w", err)
+			}
+		} else {
+			log.Println("[setup] starting game server service:", launchCfg.ServiceName)
+			if err := system.CreateAndStartService(launchCfg); err != nil {
+				return fmt.Errorf("start service: %w", err)
+			}
 		}
 	}
 
@@ -172,4 +194,24 @@ func downloadAll(packages []core.Package, destDir string) ([]core.DownloadedMod,
 	}
 
 	return downloaded, nil
+}
+
+// startProcessDirectly launches the game server as a local process (for local/debug mode).
+func startProcessDirectly(cfg core.LaunchConfig) error {
+	parts := strings.Fields(cfg.ExecStart)
+	if len(parts) == 0 {
+		return fmt.Errorf("empty ExecStart command")
+	}
+
+	cmd := exec.Command(parts[0], parts[1:]...)
+	cmd.Dir = cfg.WorkingDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	for k, v := range cfg.Environment {
+		cmd.Env = append(os.Environ(), fmt.Sprintf("%s=%s", k, v))
+	}
+
+	log.Printf("[setup] launching: %s (workdir=%s)", cfg.ExecStart, cfg.WorkingDir)
+	return cmd.Start()
 }

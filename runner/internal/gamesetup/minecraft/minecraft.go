@@ -37,7 +37,7 @@ func (m *Minecraft) ServerPaths() runnerconfig.ServerPaths {
 	}
 }
 
-func (m *Minecraft) BuildLaunchCommand(cfg runnerconfig.GameConfig) core.LaunchConfig {
+func (m *Minecraft) BuildLaunchCommand(cfg runnerconfig.GameConfig, paths runnerconfig.ServerPaths) core.LaunchConfig {
 	minMem := "1G"
 	maxMem := "4G"
 
@@ -47,8 +47,6 @@ func (m *Minecraft) BuildLaunchCommand(cfg runnerconfig.GameConfig) core.LaunchC
 	if v, ok := cfg.Settings["max_mem"].(string); ok && v != "" {
 		maxMem = v
 	}
-
-	paths := m.ServerPaths()
 
 	// Write eula.txt to accept the Minecraft EULA.
 	eulaPath := filepath.Join(paths.ServerRoot, "eula.txt")

@@ -29,8 +29,8 @@ type GameSetup interface {
 	// (e.g. "bepinex", "fabric", "forge"). Empty string means no mod framework.
 	ModFramework() string
 
-	// BuildLaunchCommand builds the systemd service configuration for the game.
-	BuildLaunchCommand(cfg runnerconfig.GameConfig) LaunchConfig
+	// BuildLaunchCommand builds the service/process configuration for the game.
+	BuildLaunchCommand(cfg runnerconfig.GameConfig, paths runnerconfig.ServerPaths) LaunchConfig
 
 	// ServerPaths returns the filesystem layout for this game.
 	ServerPaths() runnerconfig.ServerPaths

@@ -1,0 +1,31 @@
+# Example: run a Minecraft server on the local machine.
+#
+# Usage:
+#   openhost up example/local_minecraft_config.yaml
+#
+# The local provider writes the runner config to ~/.openhost/local/<name>/
+# and invokes the runner binary with debug.local_mode enabled, which skips
+# apt, user creation, firewall, and ownership changes.
+#
+# Prerequisites:
+#   - The openhost-runner binary must be on $PATH or specified via
+#     provider.settings.runner_bin
+#   - Java 21+ must be installed for Minecraft
+
+server:
+  name: "local-minecraft"
+
+provider:
+  name: local
+  settings:
+    # work_dir: "/tmp/openhost-minecraft"   # optional: override work directory
+    runner_bin: "../runner/openhost-runner" # optional: path to runner binary
+    # skip_server_start: false              # optional: skip starting the server
+
+game:
+  name: minecraft
+  settings:
+    version: "1.21.4"
+    min_mem: "1G"
+    max_mem: "2G"
+
