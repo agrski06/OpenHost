@@ -10,6 +10,7 @@ import (
 	"github.com/openhost/cli/internal/config"
 	"github.com/openhost/cli/internal/core"
 	"github.com/openhost/cli/internal/state"
+	"github.com/openhost/cli/internal/version"
 )
 
 // DeployFromConfig parses a config file, resolves the registered provider and
@@ -36,7 +37,12 @@ func DeployFromConfig(configPath string) (*core.Server, error) {
 		return nil, fmt.Errorf("build runner config for game %q: %w", parsedConfig.Game.Name, err)
 	}
 
-	userData, err := cloudinit.BuildUserData(runnerCfg, "0.1.0")
+	runnerVersion, err := version.ResolveRunnerVersion()
+	if err != nil {
+		return nil, fmt.Errorf("resolve runner version: %w", err)
+	}
+
+	userData, err := cloudinit.BuildUserData(runnerCfg, runnerVersion)
 	if err != nil {
 		return nil, fmt.Errorf("build user data for game %q: %w", parsedConfig.Game.Name, err)
 	}
