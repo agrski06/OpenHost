@@ -224,44 +224,12 @@ func (p *Provider) CreateServer(request core.CreateServerRequest) (*core.Server,
 	}
 	ctx := context.Background()
 
-	_, anyIPv4, _ := net.ParseCIDR("0.0.0.0/0")
-
-	// Helper to build a port or port-range rule
-	buildRule := func(proto hcloud.FirewallRuleProtocol, startPort int, endPort int) hcloud.FirewallRule {
-		portStr := fmt.Sprintf("%d", startPort)
-		if startPort != endPort {
-			portStr = fmt.Sprintf("%d-%d", startPort, endPort)
-		}
-		return hcloud.FirewallRule{
-			Direction: hcloud.FirewallRuleDirectionIn,
-			Protocol:  proto,
-			Port:      hcloud.Ptr(portStr),
-			SourceIPs: []net.IPNet{*anyIPv4},
-		}
-	}
-
-	// Default rules: SSH always allowed
-	rules := []hcloud.FirewallRule{
-		buildRule(hcloud.FirewallRuleProtocolTCP, 22, 22),
-	}
-
-	// Dynamic Port Generation
-	for _, pr := range request.Ports {
-		proto := hcloud.FirewallRuleProtocolTCP
-		if pr.Protocol == "udp" {
-			proto = hcloud.FirewallRuleProtocolUDP
-		}
-
-		rules = append(rules, buildRule(proto, pr.From, pr.To))
-	}
-
 	if len(request.Ports) == 0 {
 		return nil, fmt.Errorf("hetzner provider requires at least one exposed port")
 	}
 
-	// Use a unique firewall name based on the game and its primary port
-	primaryPort := request.Ports[0].From
-	fwName := fmt.Sprintf("fw-%s-%d", request.GameName, primaryPort)
+	rules := buildFirewallRules(request.Ports)
+	fwName := firewallName(request.GameName, request.Ports)
 	fw, _, err := client.Firewall.GetByName(ctx, fwName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for existing firewall: %w", err)
@@ -437,34 +405,8 @@ func (p *Provider) StartServerFromSnapshot(request core.StartServerFromSnapshotR
 	}
 	ctx := context.Background()
 
-	_, anyIPv4, _ := net.ParseCIDR("0.0.0.0/0")
-
-	buildRule := func(proto hcloud.FirewallRuleProtocol, startPort int, endPort int) hcloud.FirewallRule {
-		portStr := fmt.Sprintf("%d", startPort)
-		if startPort != endPort {
-			portStr = fmt.Sprintf("%d-%d", startPort, endPort)
-		}
-		return hcloud.FirewallRule{
-			Direction: hcloud.FirewallRuleDirectionIn,
-			Protocol:  proto,
-			Port:      hcloud.Ptr(portStr),
-			SourceIPs: []net.IPNet{*anyIPv4},
-		}
-	}
-
-	rules := []hcloud.FirewallRule{
-		buildRule(hcloud.FirewallRuleProtocolTCP, 22, 22),
-	}
-	for _, pr := range request.Ports {
-		proto := hcloud.FirewallRuleProtocolTCP
-		if pr.Protocol == "udp" {
-			proto = hcloud.FirewallRuleProtocolUDP
-		}
-		rules = append(rules, buildRule(proto, pr.From, pr.To))
-	}
-
-	primaryPort := request.Ports[0].From
-	fwName := fmt.Sprintf("fw-%s-%d", request.GameName, primaryPort)
+	rules := buildFirewallRules(request.Ports)
+	fwName := firewallName(request.GameName, request.Ports)
 	fw, _, err := client.Firewall.GetByName(ctx, fwName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for existing firewall: %w", err)
@@ -517,6 +459,44 @@ func (p *Provider) StartServerFromSnapshot(request core.StartServerFromSnapshotR
 
 func init() {
 	core.RegisterProvider("hetzner", func() core.Provider { return &Provider{} })
+}
+
+// buildFirewallRules returns the standard set of Hetzner firewall rules for a
+// game server: SSH (TCP 22) is always allowed, plus one rule per game port range.
+func buildFirewallRules(ports []core.PortRange) []hcloud.FirewallRule {
+	_, anyIPv4, _ := net.ParseCIDR("0.0.0.0/0")
+
+	buildRule := func(proto hcloud.FirewallRuleProtocol, startPort int, endPort int) hcloud.FirewallRule {
+		portStr := fmt.Sprintf("%d", startPort)
+		if startPort != endPort {
+			portStr = fmt.Sprintf("%d-%d", startPort, endPort)
+		}
+		return hcloud.FirewallRule{
+			Direction: hcloud.FirewallRuleDirectionIn,
+			Protocol:  proto,
+			Port:      hcloud.Ptr(portStr),
+			SourceIPs: []net.IPNet{*anyIPv4},
+		}
+	}
+
+	rules := []hcloud.FirewallRule{
+		buildRule(hcloud.FirewallRuleProtocolTCP, 22, 22),
+	}
+	for _, pr := range ports {
+		proto := hcloud.FirewallRuleProtocolTCP
+		if pr.Protocol == "udp" {
+			proto = hcloud.FirewallRuleProtocolUDP
+		}
+		rules = append(rules, buildRule(proto, pr.From, pr.To))
+	}
+	return rules
+}
+
+// firewallName returns a deterministic name for a game-server firewall based on
+// the game name and its primary (first) port.
+func firewallName(gameName string, ports []core.PortRange) string {
+	primaryPort := ports[0].From
+	return fmt.Sprintf("fw-%s-%d", gameName, primaryPort)
 }
 
 func (p *Provider) deleteAssociatedResources(ctx context.Context, client *hcloud.Client, request core.DeleteServerRequest) error {
