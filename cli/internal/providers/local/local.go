@@ -185,20 +185,42 @@ func (p *Provider) GetServerStatus(_ context.Context, id string) (*core.Infrastr
 		}, nil
 	}
 
-	pid, running := readPIDStatus(workDir)
-	state := core.InfrastructureStateStopped
-	detail := "local server process not running"
-	if running {
-		state = core.InfrastructureStateRunning
-		detail = fmt.Sprintf("local server running (pid %d)", pid)
+	// Primary check: try connecting to the game port.
+	if port, proto, ok := readGamePort(workDir); ok {
+		if isPortListening(port, proto) {
+			detail := fmt.Sprintf("local server listening on port %d/%s", port, proto)
+			if pid, alive := readPIDFile(filepath.Join(workDir, "game.pid")); alive {
+				detail = fmt.Sprintf("local server running (pid %d) on port %d/%s", pid, port, proto)
+			}
+			return &core.InfrastructureStatus{
+				ID:       id,
+				Name:     name,
+				PublicIP: detectLocalIP(),
+				State:    core.InfrastructureStateRunning,
+				Detail:   detail,
+			}, nil
+		}
+	}
+
+	// Fallback: check PID files.
+	for _, pidFile := range []string{"game.pid", pidFileName} {
+		if pid, alive := readPIDFile(filepath.Join(workDir, pidFile)); alive {
+			return &core.InfrastructureStatus{
+				ID:       id,
+				Name:     name,
+				PublicIP: detectLocalIP(),
+				State:    core.InfrastructureStateRunning,
+				Detail:   fmt.Sprintf("local server running (pid %d via %s)", pid, pidFile),
+			}, nil
+		}
 	}
 
 	return &core.InfrastructureStatus{
 		ID:       id,
 		Name:     name,
 		PublicIP: detectLocalIP(),
-		State:    state,
-		Detail:   detail,
+		State:    core.InfrastructureStateStopped,
+		Detail:   "local server process not running",
 	}, nil
 }
 
@@ -213,33 +235,44 @@ func (p *Provider) StopServer(_ context.Context, request core.StopServerRequest)
 		return fmt.Errorf("local: resolve work dir: %w", err)
 	}
 
-	pid, running := readPIDStatus(workDir)
-	if !running {
-		slog.Info("local provider: server already stopped", "id", request.ID)
-		return nil
+	killed := false
+	// Stop processes tracked by PID files.
+	for _, pidFile := range []string{"game.pid", pidFileName} {
+		pidPath := filepath.Join(workDir, pidFile)
+		pid, running := readPIDFile(pidPath)
+		if !running {
+			continue
+		}
+		process, err := os.FindProcess(pid)
+		if err != nil {
+			continue
+		}
+		slog.Info("local provider: sending SIGTERM", "pid", pid, "file", pidFile)
+		if err := process.Signal(syscall.SIGTERM); err != nil {
+			slog.Warn("local provider: SIGTERM failed, trying SIGKILL", "pid", pid, "err", err)
+			_ = process.Kill()
+		}
+		_ = os.Remove(pidPath)
+		killed = true
 	}
 
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return fmt.Errorf("local: find process %d: %w", pid, err)
-	}
-
-	slog.Info("local provider: sending SIGTERM to runner", "pid", pid)
-	if err := process.Signal(syscall.SIGTERM); err != nil {
-		slog.Warn("local provider: SIGTERM failed, trying SIGKILL", "pid", pid, "err", err)
-		if err := process.Kill(); err != nil {
-			return fmt.Errorf("local: kill process %d: %w", pid, err)
+	// Also try to stop by port if PID files didn't help.
+	if !killed {
+		if port, proto, ok := readGamePort(workDir); ok && isPortListening(port, proto) {
+			if pid := findProcessByPort(port); pid > 0 {
+				slog.Info("local provider: killing process on game port", "pid", pid, "port", port)
+				if process, err := os.FindProcess(pid); err == nil {
+					_ = process.Signal(syscall.SIGTERM)
+				}
+			}
 		}
 	}
 
-	// Also stop the systemd service if it exists (the runner may have created one).
+	// Also stop the systemd service if it exists.
 	serviceName := fmt.Sprintf("openhost-%s", name)
 	if isSystemdAvailable() {
 		_ = execCommand("systemctl", "stop", serviceName)
 	}
-
-	// Clean up PID file.
-	_ = os.Remove(filepath.Join(workDir, pidFileName))
 
 	slog.Info("local provider: stopped server", "id", request.ID)
 	return nil
@@ -458,30 +491,101 @@ func extractRunnerConfigFromUserData(userData string) (*runnerconfig.RunnerConfi
 	return &cfg, nil
 }
 
-// readPIDStatus reads the PID file and checks if the process is still running.
-func readPIDStatus(workDir string) (int, bool) {
-	pidPath := filepath.Join(workDir, pidFileName)
+// readPIDFile reads a PID from a file and checks if the process is alive.
+func readPIDFile(pidPath string) (int, bool) {
 	data, err := os.ReadFile(pidPath)
 	if err != nil {
 		return 0, false
 	}
-
 	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
 	if err != nil {
 		return 0, false
 	}
-
 	process, err := os.FindProcess(pid)
 	if err != nil {
 		return pid, false
 	}
-
-	// On Unix, FindProcess always succeeds. Send signal 0 to check if alive.
 	if err := process.Signal(syscall.Signal(0)); err != nil {
 		return pid, false
 	}
-
 	return pid, true
+}
+
+// readGamePort reads the runner config from workDir and returns the primary
+// game port, protocol, and true if found.
+func readGamePort(workDir string) (int, string, bool) {
+	configPath := filepath.Join(workDir, "runner-config.json")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return 0, "", false
+	}
+	var cfg runnerconfig.RunnerConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return 0, "", false
+	}
+
+	// Map game names to their primary listen port and protocol.
+	type portInfo struct {
+		port  int
+		proto string
+	}
+	knownPorts := map[string]portInfo{
+		"minecraft": {25565, "tcp"},
+		"valheim":   {2456, "udp"},
+	}
+	if info, ok := knownPorts[cfg.Game.Name]; ok {
+		return info.port, info.proto, true
+	}
+	return 0, "", false
+}
+
+// isPortListening checks if a port is in use on localhost.
+func isPortListening(port int, proto string) bool {
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	if proto == "udp" {
+		// For UDP we can't reliably dial, check /proc/net/udp instead.
+		return isUDPPortInUse(port)
+	}
+	conn, err := net.DialTimeout("tcp", addr, time.Second)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
+}
+
+// isUDPPortInUse checks /proc/net/udp for a listening UDP port (Linux only).
+func isUDPPortInUse(port int) bool {
+	data, err := os.ReadFile("/proc/net/udp")
+	if err != nil {
+		return false
+	}
+	// /proc/net/udp format: local_address is hex IP:PORT
+	hexPort := fmt.Sprintf(":%04X", port)
+	return strings.Contains(string(data), hexPort)
+}
+
+// findProcessByPort attempts to find a PID listening on the given TCP port
+// by scanning /proc (Linux only). Returns 0 if not found.
+func findProcessByPort(port int) int {
+	// Best-effort: use lsof or ss if available
+	out, err := exec.Command("ss", "-tlnp", fmt.Sprintf("sport = :%d", port)).CombinedOutput()
+	if err != nil {
+		return 0
+	}
+	// Parse "pid=12345" from ss output
+	for _, line := range strings.Split(string(out), "\n") {
+		if idx := strings.Index(line, "pid="); idx >= 0 {
+			pidStr := line[idx+4:]
+			if commaIdx := strings.IndexAny(pidStr, ",)"); commaIdx >= 0 {
+				pidStr = pidStr[:commaIdx]
+			}
+			if pid, err := strconv.Atoi(pidStr); err == nil {
+				return pid
+			}
+		}
+	}
+	return 0
 }
 
 // detectLocalIP returns the machine's local IP address.

@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/openhost/runner/internal/core"
@@ -85,6 +86,12 @@ func Run(cfg *runnerconfig.RunnerConfig) error {
 
 	// 6. Build launch configuration.
 	launchCfg := game.BuildLaunchCommand(cfg.Game, paths)
+
+	// In local mode the runner exits after starting the game process; write the
+	// game PID to <workdir>/game.pid so the CLI can track it via GetServerStatus.
+	if cfg.Debug.LocalMode {
+		launchCfg.PIDFile = filepath.Join(filepath.Dir(paths.ServerRoot), "game.pid")
+	}
 
 	// 7. Set file ownership.
 	if !cfg.Debug.LocalMode {
@@ -208,10 +215,23 @@ func startProcessDirectly(cfg core.LaunchConfig) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
+	cmd.Env = os.Environ()
 	for k, v := range cfg.Environment {
-		cmd.Env = append(os.Environ(), fmt.Sprintf("%s=%s", k, v))
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
 	}
 
 	log.Printf("[setup] launching: %s (workdir=%s)", cfg.ExecStart, cfg.WorkingDir)
-	return cmd.Start()
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	if cfg.PIDFile != "" {
+		if err := os.WriteFile(cfg.PIDFile, []byte(fmt.Sprintf("%d", cmd.Process.Pid)), 0644); err != nil {
+			log.Printf("[setup] warning: failed to write game PID file %s: %v", cfg.PIDFile, err)
+		} else {
+			log.Printf("[setup] game server PID %d written to %s", cmd.Process.Pid, cfg.PIDFile)
+		}
+	}
+
+	return nil
 }

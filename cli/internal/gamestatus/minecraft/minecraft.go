@@ -114,9 +114,35 @@ type slpResponse struct {
 		Max    int `json:"max"`
 		Online int `json:"online"`
 	} `json:"players"`
-	Description struct {
+	Description slpDescription `json:"description"`
+}
+
+// slpDescription handles the Minecraft SLP description field which can be
+// either a plain string or a chat component object {"text": "..."}.
+type slpDescription struct {
+	Text string
+}
+
+func (d *slpDescription) UnmarshalJSON(data []byte) error {
+	// Try plain string first: "description": "A Minecraft Server"
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		d.Text = s
+		return nil
+	}
+
+	// Try chat component object: "description": {"text": "A Minecraft Server"}
+	var obj struct {
 		Text string `json:"text"`
-	} `json:"description"`
+	}
+	if err := json.Unmarshal(data, &obj); err == nil {
+		d.Text = obj.Text
+		return nil
+	}
+
+	// Fallback: store raw JSON as text.
+	d.Text = string(data)
+	return nil
 }
 
 // buildHandshakePacket builds the Minecraft SLP handshake packet.

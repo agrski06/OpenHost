@@ -60,4 +60,8 @@ type LaunchConfig struct {
 
 	// RestartPolicy is the systemd restart policy ("always", "on-failure", "no").
 	RestartPolicy string
+
+	// PIDFile is the path where the game server process PID should be written.
+	// Used in local mode to track the game process independently of the runner.
+	PIDFile string
 }

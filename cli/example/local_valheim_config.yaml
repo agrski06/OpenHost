@@ -18,7 +18,7 @@ provider:
   name: local
   settings:
     # work_dir: "/tmp/openhost-valheim"     # optional: override work directory
-    # runner_bin: "./runner/openhost-runner" # optional: path to runner binary
+    runner_bin: "../runner/openhost-runner" # optional: path to runner binary
     # skip_server_start: false              # optional: skip starting the server
 
 game:
