@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/openhost/cli/internal/core"
@@ -65,7 +66,9 @@ func GetKnownServerStatus(selector string) (*ServerStatus, error) {
 		return report, nil
 	}
 
-	infra, err := provider.GetServerStatus(record.ID)
+	ctx := context.Background()
+
+	infra, err := provider.GetServerStatus(ctx, record.ID)
 	if err != nil {
 		report.Infrastructure.State = core.InfrastructureStateError
 		report.Infrastructure.Detail = err.Error()

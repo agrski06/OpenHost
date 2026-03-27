@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -44,8 +45,10 @@ func StopKnownServer(selector string, opts StopOptions) (*StopResult, error) {
 
 	result := &StopResult{Record: record}
 
+	ctx := context.Background()
+
 	if opts.CreateSnapshot {
-		snapshot, err := provider.StopServerAndSnapshot(core.StopServerAndSnapshotRequest{
+		snapshot, err := provider.StopServerAndSnapshot(ctx, core.StopServerAndSnapshotRequest{
 			ID:                  record.ID,
 			Name:                record.Name,
 			GameName:            record.Game,
@@ -62,13 +65,13 @@ func StopKnownServer(selector string, opts StopOptions) (*StopResult, error) {
 			record.LastSnapshotCreatedAt = time.Now().UTC().Format(time.RFC3339)
 		}
 	} else {
-		if err := provider.StopServer(core.StopServerRequest{ID: record.ID}); err != nil {
+		if err := provider.StopServer(ctx, core.StopServerRequest{ID: record.ID}); err != nil {
 			return nil, fmt.Errorf("stop server %q (%s:%s): %w", record.Name, record.Provider, record.ID, err)
 		}
 	}
 
 	if opts.DeleteServer {
-		if err := provider.DeleteServer(core.DeleteServerRequest{ID: record.ID}); err != nil {
+		if err := provider.DeleteServer(ctx, core.DeleteServerRequest{ID: record.ID}); err != nil {
 			return nil, fmt.Errorf("delete server after snapshot %q (%s:%s): %w", record.Name, record.Provider, record.ID, err)
 		}
 		record.Deleted = true

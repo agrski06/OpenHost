@@ -29,7 +29,7 @@ func (p *Provider) Name() string {
 	return "hetzner"
 }
 
-func (p *Provider) GetServerStatus(id string) (*core.InfrastructureStatus, error) {
+func (p *Provider) GetServerStatus(ctx context.Context, id string) (*core.InfrastructureStatus, error) {
 	if id == "" {
 		return nil, fmt.Errorf("hetzner server id cannot be empty")
 	}
@@ -44,7 +44,6 @@ func (p *Provider) GetServerStatus(id string) (*core.InfrastructureStatus, error
 		return nil, err
 	}
 
-	ctx := context.Background()
 	server, _, err := client.Server.GetByID(ctx, serverID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve hetzner server %q: %w", id, err)
@@ -71,7 +70,7 @@ func (p *Provider) GetServerStatus(id string) (*core.InfrastructureStatus, error
 	}, nil
 }
 
-func (p *Provider) StopServer(request core.StopServerRequest) error {
+func (p *Provider) StopServer(ctx context.Context, request core.StopServerRequest) error {
 	if request.ID == "" {
 		return fmt.Errorf("hetzner server id cannot be empty")
 	}
@@ -85,7 +84,6 @@ func (p *Provider) StopServer(request core.StopServerRequest) error {
 	if err != nil {
 		return err
 	}
-	ctx := context.Background()
 
 	server, _, err := client.Server.GetByID(ctx, serverID)
 	if err != nil {
@@ -110,7 +108,7 @@ func (p *Provider) StopServer(request core.StopServerRequest) error {
 	return nil
 }
 
-func (p *Provider) StartServer(request core.StartServerRequest) error {
+func (p *Provider) StartServer(ctx context.Context, request core.StartServerRequest) error {
 	if request.ID == "" {
 		return fmt.Errorf("hetzner server id cannot be empty")
 	}
@@ -124,7 +122,6 @@ func (p *Provider) StartServer(request core.StartServerRequest) error {
 	if err != nil {
 		return err
 	}
-	ctx := context.Background()
 
 	server, _, err := client.Server.GetByID(ctx, serverID)
 	if err != nil {
@@ -149,7 +146,7 @@ func (p *Provider) StartServer(request core.StartServerRequest) error {
 	return nil
 }
 
-func (p *Provider) DeleteServer(request core.DeleteServerRequest) error {
+func (p *Provider) DeleteServer(ctx context.Context, request core.DeleteServerRequest) error {
 	if request.ID == "" {
 		return fmt.Errorf("hetzner server id cannot be empty")
 	}
@@ -164,7 +161,6 @@ func (p *Provider) DeleteServer(request core.DeleteServerRequest) error {
 		return err
 	}
 
-	ctx := context.Background()
 	server, _, err := client.Server.GetByID(ctx, serverID)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve hetzner server %q before deletion: %w", request.ID, err)
@@ -212,7 +208,7 @@ func (p *Provider) DeleteServer(request core.DeleteServerRequest) error {
 	return nil
 }
 
-func (p *Provider) CreateServer(request core.CreateServerRequest) (*core.Server, error) {
+func (p *Provider) CreateServer(ctx context.Context, request core.CreateServerRequest) (*core.Server, error) {
 	var settings Settings
 	if err := mapstructure.Decode(request.ProviderSettings, &settings); err != nil {
 		return nil, fmt.Errorf("invalid hetzner settings: %w", err)
@@ -222,7 +218,6 @@ func (p *Provider) CreateServer(request core.CreateServerRequest) (*core.Server,
 	if err != nil {
 		return nil, err
 	}
-	ctx := context.Background()
 
 	if len(request.Ports) == 0 {
 		return nil, fmt.Errorf("hetzner provider requires at least one exposed port")
@@ -288,7 +283,7 @@ func (p *Provider) CreateServer(request core.CreateServerRequest) (*core.Server,
 	}, nil
 }
 
-func (p *Provider) StopServerAndSnapshot(request core.StopServerAndSnapshotRequest) (*core.SnapshotResult, error) {
+func (p *Provider) StopServerAndSnapshot(ctx context.Context, request core.StopServerAndSnapshotRequest) (*core.SnapshotResult, error) {
 	if request.ID == "" {
 		return nil, fmt.Errorf("hetzner server id cannot be empty")
 	}
@@ -302,7 +297,6 @@ func (p *Provider) StopServerAndSnapshot(request core.StopServerAndSnapshotReque
 	if err != nil {
 		return nil, err
 	}
-	ctx := context.Background()
 
 	server, _, err := client.Server.GetByID(ctx, serverID)
 	if err != nil {
@@ -375,7 +369,7 @@ func (p *Provider) StopServerAndSnapshot(request core.StopServerAndSnapshotReque
 	}, nil
 }
 
-func (p *Provider) StartServerFromSnapshot(request core.StartServerFromSnapshotRequest) (*core.Server, error) {
+func (p *Provider) StartServerFromSnapshot(ctx context.Context, request core.StartServerFromSnapshotRequest) (*core.Server, error) {
 	if request.SnapshotID == "" {
 		return nil, fmt.Errorf("hetzner snapshot id cannot be empty")
 	}
@@ -403,7 +397,6 @@ func (p *Provider) StartServerFromSnapshot(request core.StartServerFromSnapshotR
 	if err != nil {
 		return nil, err
 	}
-	ctx := context.Background()
 
 	rules := buildFirewallRules(request.Ports)
 	fwName := firewallName(request.GameName, request.Ports)

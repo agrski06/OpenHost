@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/openhost/cli/internal/core"
@@ -53,7 +54,9 @@ func DeleteKnownServerWithOptions(selector string, removeAssociatedResources boo
 		deleteRequest.Ports = gameDefinition.Ports()
 	}
 
-	if err := provider.DeleteServer(deleteRequest); err != nil {
+	ctx := context.Background()
+
+	if err := provider.DeleteServer(ctx, deleteRequest); err != nil {
 		return nil, fmt.Errorf("delete server %q (%s:%s): %w", record.Name, record.Provider, record.ID, err)
 	}
 

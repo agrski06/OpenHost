@@ -1,6 +1,7 @@
 package mock
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -32,7 +33,7 @@ func (p *Provider) Name() string {
 	return "mock"
 }
 
-func (p *Provider) GetServerStatus(id string) (*core.InfrastructureStatus, error) {
+func (p *Provider) GetServerStatus(ctx context.Context, id string) (*core.InfrastructureStatus, error) {
 	slog.Debug("mock provider: GetServerStatus", "id", id)
 	if id == "" {
 		return nil, fmt.Errorf("mock: server id cannot be empty")
@@ -58,7 +59,7 @@ func (p *Provider) GetServerStatus(id string) (*core.InfrastructureStatus, error
 	return status, nil
 }
 
-func (p *Provider) StopServer(request core.StopServerRequest) error {
+func (p *Provider) StopServer(ctx context.Context, request core.StopServerRequest) error {
 	slog.Debug("mock provider: StopServer", "id", request.ID)
 	if request.ID == "" {
 		return fmt.Errorf("mock: server id cannot be empty")
@@ -67,7 +68,7 @@ func (p *Provider) StopServer(request core.StopServerRequest) error {
 	return nil
 }
 
-func (p *Provider) StartServer(request core.StartServerRequest) error {
+func (p *Provider) StartServer(ctx context.Context, request core.StartServerRequest) error {
 	slog.Debug("mock provider: StartServer", "id", request.ID)
 	if request.ID == "" {
 		return fmt.Errorf("mock: server id cannot be empty")
@@ -76,7 +77,7 @@ func (p *Provider) StartServer(request core.StartServerRequest) error {
 	return nil
 }
 
-func (p *Provider) DeleteServer(request core.DeleteServerRequest) error {
+func (p *Provider) DeleteServer(ctx context.Context, request core.DeleteServerRequest) error {
 	slog.Debug("mock provider: DeleteServer", "id", request.ID, "removeAssociatedResources", request.RemoveAssociatedResources)
 	if request.ID == "" {
 		return fmt.Errorf("mock: server id cannot be empty")
@@ -85,7 +86,7 @@ func (p *Provider) DeleteServer(request core.DeleteServerRequest) error {
 	return nil
 }
 
-func (p *Provider) StopServerAndSnapshot(request core.StopServerAndSnapshotRequest) (*core.SnapshotResult, error) {
+func (p *Provider) StopServerAndSnapshot(ctx context.Context, request core.StopServerAndSnapshotRequest) (*core.SnapshotResult, error) {
 	slog.Debug("mock provider: StopServerAndSnapshot", "id", request.ID)
 	if request.ID == "" {
 		return nil, fmt.Errorf("mock: server id cannot be empty")
@@ -104,7 +105,7 @@ func (p *Provider) StopServerAndSnapshot(request core.StopServerAndSnapshotReque
 	}, nil
 }
 
-func (p *Provider) StartServerFromSnapshot(request core.StartServerFromSnapshotRequest) (*core.Server, error) {
+func (p *Provider) StartServerFromSnapshot(ctx context.Context, request core.StartServerFromSnapshotRequest) (*core.Server, error) {
 	slog.Debug("mock provider: StartServerFromSnapshot", "snapshotID", request.SnapshotID, "name", request.Name)
 	if request.SnapshotID == "" {
 		return nil, fmt.Errorf("mock: snapshot id cannot be empty")
@@ -124,7 +125,7 @@ func (p *Provider) StartServerFromSnapshot(request core.StartServerFromSnapshotR
 	return server, nil
 }
 
-func (p *Provider) CreateServer(request core.CreateServerRequest) (*core.Server, error) {
+func (p *Provider) CreateServer(ctx context.Context, request core.CreateServerRequest) (*core.Server, error) {
 	slog.Debug("mock provider: CreateServer",
 		"name", request.Name,
 		"game", request.GameName,

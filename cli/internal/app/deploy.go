@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -34,7 +35,9 @@ func DeployFromConfig(configPath string) (*core.Server, error) {
 		return nil, fmt.Errorf("build init command for game %q: %w", parsedConfig.Game.Name, err)
 	}
 
-	server, err := provider.CreateServer(core.CreateServerRequest{
+	ctx := context.Background()
+
+	server, err := provider.CreateServer(ctx, core.CreateServerRequest{
 		Name:             parsedConfig.Server.Name,
 		GameName:         game.Name(),
 		Ports:            game.Ports(),

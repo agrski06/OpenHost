@@ -5,7 +5,6 @@ go 1.26.1
 require (
 	github.com/hetznercloud/hcloud-go/v2 v2.36.0
 	github.com/spf13/viper v1.21.0
-	github.com/stretchr/testify v1.11.1
 )
 
 require (

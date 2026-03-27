@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -39,9 +40,11 @@ func StartKnownServer(selector string, opts StartOptions) (*StartResult, error) 
 		return nil, fmt.Errorf("resolve provider %q for server %q: %w", record.Provider, record.Name, err)
 	}
 
+	ctx := context.Background()
+
 	shouldRecreate := opts.Recreate || record.Deleted
 	if !shouldRecreate {
-		status, err := provider.GetServerStatus(record.ID)
+		status, err := provider.GetServerStatus(ctx, record.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -52,7 +55,7 @@ func StartKnownServer(selector string, opts StartOptions) (*StartResult, error) 
 
 	if !shouldRecreate {
 		// Power on the existing server.
-		if err := provider.StartServer(core.StartServerRequest{ID: record.ID}); err != nil {
+		if err := provider.StartServer(ctx, core.StartServerRequest{ID: record.ID}); err != nil {
 			return nil, fmt.Errorf("start server %q (%s:%s): %w", record.Name, record.Provider, record.ID, err)
 		}
 		record.Deleted = false
@@ -79,7 +82,7 @@ func StartKnownServer(selector string, opts StartOptions) (*StartResult, error) 
 		return nil, fmt.Errorf("resolve game %q for server %q: %w", record.Game, record.Name, err)
 	}
 
-	newServer, err := provider.StartServerFromSnapshot(core.StartServerFromSnapshotRequest{
+	newServer, err := provider.StartServerFromSnapshot(ctx, core.StartServerFromSnapshotRequest{
 		SnapshotID:       record.LastSnapshotID,
 		Name:             record.Name,
 		GameName:         game.Name(),

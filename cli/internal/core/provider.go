@@ -1,5 +1,7 @@
 package core
 
+import "context"
+
 type CreateServerRequest struct {
 	Name             string
 	GameName         string
@@ -86,25 +88,25 @@ type Provider interface {
 
 	// CreateServer executes the final step to create and start the server
 	// on the cloud provider, using the prepared configuration.
-	CreateServer(request CreateServerRequest) (*Server, error)
+	CreateServer(ctx context.Context, request CreateServerRequest) (*Server, error)
 
 	// GetServerStatus retrieves the infrastructure status for the
 	// server identified by the provider-native ID.
-	GetServerStatus(id string) (*InfrastructureStatus, error)
+	GetServerStatus(ctx context.Context, id string) (*InfrastructureStatus, error)
 
 	// StopServer stops (powers off) a server.
-	StopServer(request StopServerRequest) error
+	StopServer(ctx context.Context, request StopServerRequest) error
 
 	// StartServer starts (powers on) a server.
-	StartServer(request StartServerRequest) error
+	StartServer(ctx context.Context, request StartServerRequest) error
 
 	// DeleteServer removes the server identified by the provider-native ID.
-	DeleteServer(request DeleteServerRequest) error
+	DeleteServer(ctx context.Context, request DeleteServerRequest) error
 
 	// StopServerAndSnapshot gracefully stops a server (including any in-guest
 	// services where supported) and then creates a provider snapshot image.
-	StopServerAndSnapshot(request StopServerAndSnapshotRequest) (*SnapshotResult, error)
+	StopServerAndSnapshot(ctx context.Context, request StopServerAndSnapshotRequest) (*SnapshotResult, error)
 
 	// StartServerFromSnapshot creates a new server from a snapshot image.
-	StartServerFromSnapshot(request StartServerFromSnapshotRequest) (*Server, error)
+	StartServerFromSnapshot(ctx context.Context, request StartServerFromSnapshotRequest) (*Server, error)
 }
